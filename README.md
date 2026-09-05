@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/rabbanyhmm/ClipTrayLT/actions/workflows/ci.yml"><img src="https://github.com/rabbanyhmm/ClipTrayLT/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/rabbanyhmm/ClipTrayLT"><img src="https://img.shields.io/badge/Platform-Linux-blue.svg" alt="Platform"></a>
   <a href="https://github.com/rabbanyhmm/ClipTrayLT"><img src="https://img.shields.io/badge/C%2B%2B-20-00599C?logo=c%2B%2B" alt="C++20"></a>
   <a href="https://github.com/rabbanyhmm/ClipTrayLT"><img src="https://img.shields.io/badge/Qt-6-41CD52?logo=qt" alt="Qt6"></a>

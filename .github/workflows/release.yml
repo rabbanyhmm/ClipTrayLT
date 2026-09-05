@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Publish Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            build-essential \
+            cmake \
+            ninja-build \
+            qt6-base-dev \
+            libevdev-dev \
+            libsqlite3-dev \
+            libatspi2.0-dev \
+            libglib2.0-dev \
+            libx11-dev \
+            libxcb1-dev
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -S . \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Compile Release Binaries
+        run: |
+          cmake --build build -j$(nproc)
+          strip build/cliptraylt build/cliptraylt-trigger
+
+      - name: Run Tests
+        run: |
+          ./build/test_storage
+
+      - name: Package Release Assets
+        id: package
+        run: |
+          VERSION="${GITHUB_REF_NAME:-v1.0.0}"
+          PKG_NAME="cliptraylt-${VERSION}-linux-x86_64"
+          mkdir -p "dist/${PKG_NAME}/bin"
+
+          cp build/cliptraylt "dist/${PKG_NAME}/bin/"
+          cp build/cliptraylt-trigger "dist/${PKG_NAME}/bin/"
+          cp install.sh "dist/${PKG_NAME}/"
+          cp update.sh "dist/${PKG_NAME}/"
+          cp uninstall.sh "dist/${PKG_NAME}/"
+          cp setup_shortcut.sh "dist/${PKG_NAME}/"
+          cp README.md "dist/${PKG_NAME}/"
+          cp LICENSE "dist/${PKG_NAME}/"
+          mkdir -p "dist/${PKG_NAME}/assets"
+          cp assets/banner.png "dist/${PKG_NAME}/assets/" 2>/dev/null || true
+
+          cd dist
+          tar -czvf "${PKG_NAME}.tar.gz" "${PKG_NAME}"
+          sha256sum "${PKG_NAME}.tar.gz" > "${PKG_NAME}.tar.gz.sha256"
+          echo "archive=${PKG_NAME}.tar.gz" >> $GITHUB_OUTPUT
+          echo "checksum=${PKG_NAME}.tar.gz.sha256" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/*.tar.gz.sha256
+          generate_release_notes: true
+          draft: false
+          prerelease: false
