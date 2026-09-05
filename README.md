@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/banner.png" alt="ClipTray LT" width="100%">
+</p>
+
 # ClipTray LT
 
 A lightweight clipboard manager for Linux (X11 & Wayland).
