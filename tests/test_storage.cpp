@@ -82,5 +82,48 @@ int main() {
     assert(mem_items[0].text_content == "RamItem #10");
     std::cout << "High-speed volatile RAM (:memory:) storage test passed!\n";
 
+    // 7. Rigorous No-Duplicate Rule Verification (Text & Images)
+    StorageManager dedup_storage("/tmp/test_sc_dedup.db");
+    dedup_storage.addItem("text", "Apple");
+    std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    dedup_storage.addItem("text", "Banana");
+    std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    dedup_storage.addItem("text", "Cherry");
+
+    auto list1 = dedup_storage.getItems();
+    assert(list1.size() == 3);
+    assert(list1[0].text_content == "Cherry");
+    assert(list1[1].text_content == "Banana");
+    assert(list1[2].text_content == "Apple");
+
+    // Re-copy "Apple": should move from bottom (index 2) to top (index 0), NO duplicate created!
+    std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    dedup_storage.addItem("text", "Apple");
+    auto list2 = dedup_storage.getItems();
+    assert(list2.size() == 3); // Still exactly 3 items!
+    assert(list2[0].text_content == "Apple"); // Moved to top
+    assert(list2[1].text_content == "Cherry");
+    assert(list2[2].text_content == "Banana");
+
+    // Test Image deduplication
+    std::vector<uint8_t> imgA = {0x89, 'P', 'N', 'G', 0x01};
+    std::vector<uint8_t> imgB = {0x89, 'P', 'N', 'G', 0x02};
+    dedup_storage.addItem("image", "", "", imgA);
+    std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    dedup_storage.addItem("image", "", "", imgB);
+
+    auto list3 = dedup_storage.getItems();
+    assert(list3.size() == 5); // 3 text + 2 images
+    assert(list3[0].image_data == imgB);
+
+    // Re-copy imgA: should jump to very top, NO duplicate created!
+    std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    dedup_storage.addItem("image", "", "", imgA);
+    auto list4 = dedup_storage.getItems();
+    assert(list4.size() == 5); // Still exactly 5 items
+    assert(list4[0].image_data == imgA); // imgA moved to the very top!
+    std::filesystem::remove("/tmp/test_sc_dedup.db");
+    std::cout << "No-duplicate rule for text & images verified successfully!\n";
+
     return 0;
 }

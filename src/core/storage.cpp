@@ -126,10 +126,42 @@ int64_t StorageManager::addItem(const std::string& content_type,
 
     // Deduplication check: if text content already exists, update timestamp so it jumps to top
     if (content_type == "text" && !text_content.empty()) {
-        const char* check_sql = "SELECT id, is_pinned FROM clipboard_history WHERE content_type = 'text' AND text_content = ? LIMIT 1;";
+        const char* check_sql = "SELECT id FROM clipboard_history WHERE content_type = 'text' AND text_content = ? LIMIT 1;";
         sqlite3_stmt* stmt = nullptr;
         if (sqlite3_prepare_v2(db_, check_sql, -1, &stmt, nullptr) == SQLITE_OK) {
             sqlite3_bind_text(stmt, 1, text_content.c_str(), -1, SQLITE_TRANSIENT);
+            if (sqlite3_step(stmt) == SQLITE_ROW) {
+                int64_t existing_id = sqlite3_column_int64(stmt, 0);
+                sqlite3_finalize(stmt);
+
+                const char* update_sql = html_content.empty()
+                    ? "UPDATE clipboard_history SET created_at = ? WHERE id = ?;"
+                    : "UPDATE clipboard_history SET created_at = ?, html_content = ? WHERE id = ?;";
+                sqlite3_stmt* ustmt = nullptr;
+                if (sqlite3_prepare_v2(db_, update_sql, -1, &ustmt, nullptr) == SQLITE_OK) {
+                    sqlite3_bind_int64(ustmt, 1, now);
+                    if (!html_content.empty()) {
+                        sqlite3_bind_text(ustmt, 2, html_content.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_int64(ustmt, 3, existing_id);
+                    } else {
+                        sqlite3_bind_int64(ustmt, 2, existing_id);
+                    }
+                    sqlite3_step(ustmt);
+                    sqlite3_finalize(ustmt);
+                    return existing_id;
+                }
+            } else {
+                sqlite3_finalize(stmt);
+            }
+        }
+    }
+
+    // Deduplication check: if image content already exists, update timestamp so it jumps to top
+    if (content_type == "image" && !image_data.empty()) {
+        const char* check_sql = "SELECT id FROM clipboard_history WHERE content_type = 'image' AND image_blob = ? LIMIT 1;";
+        sqlite3_stmt* stmt = nullptr;
+        if (sqlite3_prepare_v2(db_, check_sql, -1, &stmt, nullptr) == SQLITE_OK) {
+            sqlite3_bind_blob(stmt, 1, image_data.data(), static_cast<int>(image_data.size()), SQLITE_TRANSIENT);
             if (sqlite3_step(stmt) == SQLITE_ROW) {
                 int64_t existing_id = sqlite3_column_int64(stmt, 0);
                 sqlite3_finalize(stmt);

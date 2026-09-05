@@ -34,11 +34,14 @@ void ClipboardDaemon::onClipboardChanged() {
         QString text = mime->text();
         if (text.trimmed().isEmpty()) return;
 
-        if (text == last_saved_text_) {
-            // Rapid duplicate event ignored
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_text_copy_time_).count();
+        if (text == last_saved_text_ && elapsed < 400) {
+            // Rapid duplicate event from same keystroke ignored
             return;
         }
         last_saved_text_ = text;
+        last_text_copy_time_ = now;
 
         QString html = mime->hasHtml() ? mime->html() : "";
         int64_t id = storage_->addItem("text", text.toStdString(), html.toStdString());
@@ -55,6 +58,14 @@ void ClipboardDaemon::onClipboardChanged() {
             QBuffer buffer(&bytes);
             buffer.open(QIODevice::WriteOnly);
             image.save(&buffer, "PNG");
+
+            auto now = std::chrono::steady_clock::now();
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_image_copy_time_).count();
+            if (bytes == last_saved_image_bytes_ && elapsed < 400) {
+                return;
+            }
+            last_saved_image_bytes_ = bytes;
+            last_image_copy_time_ = now;
 
             std::vector<uint8_t> blob(bytes.begin(), bytes.end());
             int64_t id = storage_->addItem("image", "", "", blob);
