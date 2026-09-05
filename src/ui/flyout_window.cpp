@@ -281,6 +281,12 @@ void FlyoutWindow::showFlyout() {
     if (anim_group_) {
         anim_group_->stop();
         delete anim_group_;
+        anim_group_ = nullptr;
+    }
+    if (hide_anim_) {
+        hide_anim_->stop();
+        delete hide_anim_;
+        hide_anim_ = nullptr;
     }
 
     qreal start_opacity = isVisible() ? windowOpacity() : 0.0;
@@ -342,37 +348,42 @@ void FlyoutWindow::hideFlyout() {
     if (anim_group_) {
         anim_group_->stop();
         delete anim_group_;
+        anim_group_ = nullptr;
+    }
+    if (hide_anim_) {
+        hide_anim_->stop();
+        delete hide_anim_;
+        hide_anim_ = nullptr;
     }
 
     qreal start_opacity = windowOpacity();
-    QPoint curr_pos = pos();
-    QPoint end_pos = curr_pos + QPoint(0, 16);
-
-    anim_group_ = new QParallelAnimationGroup(this);
+    if (start_opacity <= 0.05) {
+        hide();
+        setWindowOpacity(1.0);
+        return;
+    }
 
     int hide_ms = Config::get().anim_hide_ms;
-    auto* opacity_anim = new QPropertyAnimation(this, "windowOpacity");
-    opacity_anim->setDuration(hide_ms);
-    opacity_anim->setStartValue(start_opacity);
-    opacity_anim->setEndValue(0.0);
-    opacity_anim->setEasingCurve(QEasingCurve::InCubic);
+    if (hide_ms <= 0) {
+        hide();
+        setWindowOpacity(1.0);
+        return;
+    }
 
-    auto* pos_anim = new QPropertyAnimation(this, "pos");
-    pos_anim->setDuration(hide_ms);
-    pos_anim->setStartValue(curr_pos);
-    pos_anim->setEndValue(end_pos);
-    pos_anim->setEasingCurve(QEasingCurve::InCubic);
+    // Keep it natural, clean and smooth in place (no position shifting / height clipping)
+    hide_anim_ = new QPropertyAnimation(this, "windowOpacity");
+    hide_anim_->setDuration(hide_ms);
+    hide_anim_->setStartValue(start_opacity);
+    hide_anim_->setEndValue(0.0);
+    hide_anim_->setEasingCurve(QEasingCurve::OutQuad);
 
-    anim_group_->addAnimation(opacity_anim);
-    anim_group_->addAnimation(pos_anim);
-
-    connect(anim_group_, &QParallelAnimationGroup::finished, this, [this]() {
+    connect(hide_anim_, &QPropertyAnimation::finished, this, [this]() {
         hide();
         setWindowOpacity(1.0);
         std::cout << "[Flyout] Window smoothly hidden.\n" << std::flush;
     });
 
-    anim_group_->start(QAbstractAnimation::DeleteWhenStopped);
+    hide_anim_->start(QAbstractAnimation::DeleteWhenStopped);
 }
 
 QPoint FlyoutWindow::calculateBottomRightPosition() {

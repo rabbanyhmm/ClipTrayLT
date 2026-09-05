@@ -68,6 +68,7 @@ private:
     std::atomic<bool> history_dirty_{true};
     std::chrono::steady_clock::time_point last_show_time_;
     QPointer<QParallelAnimationGroup> anim_group_ = nullptr;
+    QPointer<QPropertyAnimation> hide_anim_ = nullptr;
     unsigned long target_window_ = 0;
 
     void updateSelection(int new_index);
