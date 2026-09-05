@@ -16,6 +16,7 @@
 #include <sys/stat.h>
 #include <filesystem>
 
+#include "config.h"
 #include "storage.h"
 #include "paste_injector.h"
 #include "clipboard_daemon.h"
@@ -124,6 +125,9 @@ int main(int argc, char *argv[]) {
     std::cout << "    SimpleClipboard Native (Windows 10 Edition)    \n";
     std::cout << "===================================================\n";
 
+    // Load lightweight configuration from INI or defaults
+    Config::get().load();
+
     // Initialize Core Modules
     auto storage = std::make_shared<StorageManager>();
     auto paste_injector = std::make_shared<PasteInjector>();
@@ -211,7 +215,8 @@ int main(int argc, char *argv[]) {
     tray_icon->setContextMenu(tray_menu);
     tray_icon->show();
 
-    std::cout << "[Ready] Monitoring all system copies (Max 25 items saved).\n";
+    std::cout << "[Ready] Monitoring all system copies (Max " << Config::get().max_items << " items, "
+              << (Config::get().save_to_disk ? "persistent on disk" : "in-memory only") << ").\n";
     std::cout << "[Ready] Press SUPER + V to toggle flyout.\n";
     std::cout << "[Ready] Click anywhere outside to dismiss.\n";
 

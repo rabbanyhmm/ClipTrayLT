@@ -1,5 +1,6 @@
 #include "flyout_window.h"
 #include "style.h"
+#include "config.h"
 #include <QScreen>
 #include <QGuiApplication>
 #include <QKeyEvent>
@@ -169,14 +170,15 @@ void FlyoutWindow::showFlyout() {
 
     anim_group_ = new QParallelAnimationGroup(this);
 
+    int appear_ms = Config::get().anim_appear_ms;
     auto* opacity_anim = new QPropertyAnimation(this, "windowOpacity");
-    opacity_anim->setDuration(200);
+    opacity_anim->setDuration(appear_ms);
     opacity_anim->setStartValue(start_opacity);
     opacity_anim->setEndValue(1.0);
     opacity_anim->setEasingCurve(QEasingCurve::OutCubic);
 
     auto* pos_anim = new QPropertyAnimation(this, "pos");
-    pos_anim->setDuration(200);
+    pos_anim->setDuration(appear_ms);
     pos_anim->setStartValue(curr_pos);
     pos_anim->setEndValue(target_pos);
     pos_anim->setEasingCurve(QEasingCurve::OutCubic);
@@ -208,14 +210,15 @@ void FlyoutWindow::hideFlyout() {
 
     anim_group_ = new QParallelAnimationGroup(this);
 
+    int hide_ms = Config::get().anim_hide_ms;
     auto* opacity_anim = new QPropertyAnimation(this, "windowOpacity");
-    opacity_anim->setDuration(160);
+    opacity_anim->setDuration(hide_ms);
     opacity_anim->setStartValue(start_opacity);
     opacity_anim->setEndValue(0.0);
     opacity_anim->setEasingCurve(QEasingCurve::InCubic);
 
     auto* pos_anim = new QPropertyAnimation(this, "pos");
-    pos_anim->setDuration(160);
+    pos_anim->setDuration(hide_ms);
     pos_anim->setStartValue(curr_pos);
     pos_anim->setEndValue(end_pos);
     pos_anim->setEasingCurve(QEasingCurve::InCubic);
@@ -278,8 +281,8 @@ void FlyoutWindow::reloadHistory() {
     cards_.clear();
     selected_index_ = -1;
 
-    // Limit 25 items
-    auto items = storage_->getItems(25);
+    // Load items up to Config limit
+    auto items = storage_->getItems();
     if (items.empty()) {
         scroll_area_->hide();
         clear_all_btn_->setEnabled(false);

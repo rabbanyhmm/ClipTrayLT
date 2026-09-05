@@ -4,6 +4,7 @@
 #include <thread>
 #include <chrono>
 #include "storage.h"
+#include "config.h"
 
 int main() {
     std::string test_db = "/tmp/test_sc_storage_25.db";
@@ -56,5 +57,30 @@ int main() {
 
     std::filesystem::remove(test_db);
     std::cout << "All 25-item auto-pruning & deduplication tests passed successfully!\n";
+
+    // 5. Test Config dynamic max_items expansion (e.g. increase to 40)
+    Config::get().max_items = 40;
+    StorageManager storage2(test_db);
+    for (int i = 1; i <= 50; ++i) {
+        storage2.addItem("text", "ConfigItem #" + std::to_string(i));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    auto items_dyn = storage2.getItems();
+    assert(items_dyn.size() == 40);
+    assert(items_dyn[0].text_content == "ConfigItem #50");
+    std::filesystem::remove(test_db);
+    std::cout << "Dynamic Config max_items test passed!\n";
+
+    // 6. Test In-Memory mode (save_to_disk = false)
+    Config::get().save_to_disk = false;
+    StorageManager mem_storage; // resolves to :memory:
+    for (int i = 1; i <= 10; ++i) {
+        mem_storage.addItem("text", "RamItem #" + std::to_string(i));
+    }
+    auto mem_items = mem_storage.getItems();
+    assert(mem_items.size() == 10);
+    assert(mem_items[0].text_content == "RamItem #10");
+    std::cout << "High-speed volatile RAM (:memory:) storage test passed!\n";
+
     return 0;
 }

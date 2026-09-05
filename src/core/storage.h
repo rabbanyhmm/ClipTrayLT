@@ -26,10 +26,10 @@ public:
                     const std::string& text_content,
                     const std::string& html_content = "",
                     const std::vector<uint8_t>& image_data = {},
-                    int max_items = 25);
+                    int max_items = -1);
 
-    void enforceMaxItems(int max_items = 25);
-    std::vector<ClipboardRecord> getItems(int limit = 25, const std::string& query = "");
+    void enforceMaxItems(int max_items = -1);
+    std::vector<ClipboardRecord> getItems(int limit = -1, const std::string& query = "");
     std::optional<ClipboardRecord> getItemById(int64_t id);
     bool togglePin(int64_t id);
     bool deleteItem(int64_t id);

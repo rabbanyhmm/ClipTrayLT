@@ -41,7 +41,7 @@ void ClipboardDaemon::onClipboardChanged() {
         last_saved_text_ = text;
 
         QString html = mime->hasHtml() ? mime->html() : "";
-        int64_t id = storage_->addItem("text", text.toStdString(), html.toStdString(), {}, 25);
+        int64_t id = storage_->addItem("text", text.toStdString(), html.toStdString());
         std::cout << "[ClipboardDaemon] Captured copied text (ID: " << id
                   << ", Preview: " << text.left(40).toStdString() << "...)\n" << std::flush;
         emit historyUpdated();
@@ -57,7 +57,7 @@ void ClipboardDaemon::onClipboardChanged() {
             image.save(&buffer, "PNG");
 
             std::vector<uint8_t> blob(bytes.begin(), bytes.end());
-            int64_t id = storage_->addItem("image", "", "", blob, 25);
+            int64_t id = storage_->addItem("image", "", "", blob);
             std::cout << "[ClipboardDaemon] Captured copied image (ID: " << id << ")\n" << std::flush;
             emit historyUpdated();
         }

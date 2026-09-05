@@ -25,6 +25,7 @@ include_directories(
 )
 
 set(SOURCES
+    src/core/config.cpp
     src/core/storage.cpp
     src/core/paste_injector.cpp
     src/core/evdev_listener.cpp
@@ -55,8 +56,8 @@ target_link_libraries(simpleclipboard-native
 )
 
 # Unit Tests
-add_executable(test_storage tests/test_storage.cpp src/core/storage.cpp)
-target_link_libraries(test_storage PRIVATE PkgConfig::SQLITE3)
+add_executable(test_storage tests/test_storage.cpp src/core/storage.cpp src/core/config.cpp)
+target_link_libraries(test_storage PRIVATE PkgConfig::SQLITE3 Qt6::Core)
 
 # Instant IPC Trigger CLI
 add_executable(simpleclipboard-trigger src/trigger.c)

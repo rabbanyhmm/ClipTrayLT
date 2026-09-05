@@ -1,4 +1,5 @@
 #include "storage.h"
+#include "config.h"
 #include <iostream>
 #include <chrono>
 #include <filesystem>
@@ -30,8 +31,21 @@ static std::string getDefaultDbPath() {
     return dir + "/history.db";
 }
 
+static std::string resolveDbPath(const std::string& custom_path) {
+    if (!custom_path.empty()) {
+        return custom_path;
+    }
+    if (!Config::get().save_to_disk) {
+        return ":memory:";
+    }
+    if (!Config::get().db_path.empty()) {
+        return Config::get().db_path;
+    }
+    return getDefaultDbPath();
+}
+
 StorageManager::StorageManager(const std::string& db_path)
-    : db_path_(db_path.empty() ? getDefaultDbPath() : db_path) {
+    : db_path_(resolveDbPath(db_path)) {
     init();
 }
 
@@ -57,6 +71,9 @@ void StorageManager::ensureSchema() {
     const char* schema = R"(
         PRAGMA journal_mode = WAL;
         PRAGMA synchronous = NORMAL;
+        PRAGMA temp_store = MEMORY;
+        PRAGMA cache_size = -4000;
+        PRAGMA mmap_size = 30000000;
         CREATE TABLE IF NOT EXISTS clipboard_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             content_type TEXT NOT NULL,
@@ -77,6 +94,9 @@ void StorageManager::ensureSchema() {
 }
 
 void StorageManager::enforceMaxItems(int max_items) {
+    if (max_items <= 0) {
+        max_items = Config::get().max_items;
+    }
     if (!db_ || max_items <= 0) return;
     // Keep all pinned items, and remove oldest unpinned items past the limit
     const char* sql = "DELETE FROM clipboard_history WHERE is_pinned = 0 AND id NOT IN ("
@@ -96,6 +116,9 @@ int64_t StorageManager::addItem(const std::string& content_type,
                                 const std::string& html_content,
                                 const std::vector<uint8_t>& image_data,
                                 int max_items) {
+    if (max_items <= 0) {
+        max_items = Config::get().max_items;
+    }
     if (!db_) return -1;
 
     int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -156,6 +179,9 @@ int64_t StorageManager::addItem(const std::string& content_type,
 }
 
 std::vector<ClipboardRecord> StorageManager::getItems(int limit, const std::string& query) {
+    if (limit <= 0) {
+        limit = Config::get().max_items;
+    }
     std::vector<ClipboardRecord> results;
     if (!db_) return results;
 
