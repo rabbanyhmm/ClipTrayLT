@@ -5,15 +5,15 @@ set -e
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TRIGGER="$DIR/build/cliptraylt-trigger"
 
-if [ ! -f "$TRIGGER" ]; then
+if [[ ! -f "$TRIGGER" ]]; then
     echo "Building trigger CLI..."
     cmake -B "$DIR/build" -S "$DIR"
     cmake --build "$DIR/build" --target cliptraylt-trigger
 fi
 
-if [ -f "/usr/local/bin/cliptraylt-trigger" ]; then
+if [[ -f "/usr/local/bin/cliptraylt-trigger" ]]; then
     COMMAND="/usr/local/bin/cliptraylt-trigger"
-elif [ -f "/usr/local/bin/cliptraylt" ]; then
+elif [[ -f "/usr/local/bin/cliptraylt" ]]; then
     COMMAND="/usr/local/bin/cliptraylt --toggle"
 else
     COMMAND="$TRIGGER"
@@ -28,7 +28,7 @@ CURRENT_LIST=$(gsettings get org.gnome.settings-daemon.plugins.media-keys custom
 NEW_PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/simpleclipboard-native/"
 
 if [[ "$CURRENT_LIST" != *"$NEW_PATH"* ]]; then
-    if [ "$CURRENT_LIST" == "@as []" ] || [ -z "$CURRENT_LIST" ]; then
+    if [[ "$CURRENT_LIST" == "@as []" || -z "$CURRENT_LIST" ]]; then
         UPDATED_LIST="['$NEW_PATH']"
     else
         UPDATED_LIST="${CURRENT_LIST%]*}, '$NEW_PATH']"

@@ -47,7 +47,7 @@ fi
 # 7. Autostart on login (Desktop autostart + systemd user service)
 TARGET_USER="${SUDO_USER:-$USER}"
 TARGET_HOME=$(getent passwd "$TARGET_USER" | cut -d: -f6)
-if [ -z "$TARGET_HOME" ]; then
+if [[ -z "$TARGET_HOME" ]]; then
     TARGET_HOME="$HOME"
 fi
 
@@ -82,7 +82,7 @@ WantedBy=default.target
 EOF
 chown -R "$TARGET_USER:" "$TARGET_HOME/.config/systemd" 2>/dev/null || true
 
-if [ -n "$SUDO_USER" ]; then
+if [[ -n "$SUDO_USER" ]]; then
     sudo -u "$SUDO_USER" systemctl --user daemon-reload 2>/dev/null || true
     sudo -u "$SUDO_USER" systemctl --user enable --now cliptraylt.service 2>/dev/null || true
 else

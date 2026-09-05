@@ -18,7 +18,7 @@ sudo udevadm control --reload-rules 2>/dev/null || true
 # Remove service and autostart
 TARGET_USER="${SUDO_USER:-$USER}"
 TARGET_HOME=$(getent passwd "$TARGET_USER" | cut -d: -f6)
-if [ -z "$TARGET_HOME" ]; then
+if [[ -z "$TARGET_HOME" ]]; then
     TARGET_HOME="$HOME"
 fi
 

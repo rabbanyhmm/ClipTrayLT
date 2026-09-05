@@ -4,7 +4,7 @@
 echo "=== Clipboard Flyout Setup ==="
 
 # 1. Grant write permissions to uinput device for hardware keyboard emulation
-if [ ! -w /dev/uinput ]; then
+if [[ ! -w /dev/uinput ]]; then
     echo "[1/2] Granting read/write access to /dev/uinput..."
     sudo chmod 666 /dev/uinput
 else
@@ -19,7 +19,7 @@ sudo chmod 666 /dev/input/event*
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN="$SCRIPT_DIR/build/cliptraylt"
 
-if [ ! -f "$BIN" ]; then
+if [[ ! -f "$BIN" ]]; then
     echo "Building ClipTray LT Native..."
     cmake -S "$SCRIPT_DIR" -B "$SCRIPT_DIR/build" -DCMAKE_BUILD_TYPE=Release
     cmake --build "$SCRIPT_DIR/build" -j$(nproc)
