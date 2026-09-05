@@ -10,10 +10,12 @@
 
 <p align="center">
   <a href="https://github.com/rabbanyhmm/ClipTrayLT/actions/workflows/ci.yml"><img src="https://github.com/rabbanyhmm/ClipTrayLT/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/rabbanyhmm/ClipTrayLT"><img src="https://img.shields.io/badge/Platform-Linux-blue.svg" alt="Platform"></a>
+  <a href="https://sonarcloud.io/dashboard?id=rabbanyhmm_SimpleClipboard"><img src="https://sonarcloud.io/api/project_badges/measure?project=rabbanyhmm_SimpleClipboard&metric=alert_status" alt="Quality Gate Status"></a>
+  <a href="https://sonarcloud.io/dashboard?id=rabbanyhmm_SimpleClipboard"><img src="https://sonarcloud.io/api/project_badges/measure?project=rabbanyhmm_SimpleClipboard&metric=security_rating" alt="Security Rating"></a>
+  <a href="https://github.com/rabbanyhmm/ClipTrayLT/releases"><img src="https://img.shields.io/github/v/release/rabbanyhmm/ClipTrayLT" alt="Latest Release"></a>
+  <a href="https://github.com/rabbanyhmm/ClipTrayLT"><img src="https://img.shields.io/badge/Platform-Linux%20(x86__64%20%7C%20ARM64)-blue.svg" alt="Platform"></a>
   <a href="https://github.com/rabbanyhmm/ClipTrayLT"><img src="https://img.shields.io/badge/C%2B%2B-20-00599C?logo=c%2B%2B" alt="C++20"></a>
   <a href="https://github.com/rabbanyhmm/ClipTrayLT"><img src="https://img.shields.io/badge/Qt-6-41CD52?logo=qt" alt="Qt6"></a>
-  <a href="https://github.com/rabbanyhmm/ClipTrayLT"><img src="https://img.shields.io/badge/Display-X11%20%7C%20Wayland-informational" alt="Display Server"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
 </p>
 
@@ -25,10 +27,12 @@ ClipTray LT is an event-driven clipboard history flyout for Linux. It operates w
 
 - **Instant Search**: Type immediately upon opening to filter text and snippets in real time.
 - **Full Keyboard Navigation**: Move with arrow keys, press Enter to paste, or use quick keys `1`–`9`.
+- **Large Payloads & Raw Bytes**: Handles large multi-megabyte payloads and binary byte streams (with embedded nulls) without corruption or UI lag.
 - **Direct Application Pasting**: Pastes selected clips directly into the currently active target window.
 - **Privacy First**: Automatically detects and ignores passwords copied from KeePassXC, Bitwarden, 1Password, etc.
 - **Volatile RAM Mode**: Pure in-memory operation by default—no clips are written to disk unless explicitly configured.
 - **Pinning**: Pin favorite clips to keep them permanently across restarts.
+- **Multi-Architecture**: Native builds for both `x86_64` (amd64) and `aarch64` (ARM64).
 - **Zero Idle CPU**: 100% event-driven architecture using Linux kernel `uinput`, `libevdev`, and Qt6.
 
 ## Keyboard Shortcuts
@@ -44,7 +48,28 @@ ClipTray LT is an event-driven clipboard history flyout for Linux. It operates w
 
 ## Installation
 
-Run the automated installer:
+### Option 1: Debian / Ubuntu (.deb Package)
+
+Download the `.deb` package for your architecture from the [Releases](https://github.com/rabbanyhmm/ClipTrayLT/releases) page:
+
+```bash
+# For x86_64 (Intel / AMD):
+sudo apt install ./cliptraylt_1.0.0_amd64.deb
+
+# For ARM64 (aarch64):
+sudo apt install ./cliptraylt_1.0.0_arm64.deb
+```
+
+### Option 2: Pre-built Binary Tarball
+
+```bash
+# Extract and run the installer
+tar -xzf cliptraylt-v1.0.0-linux-*.tar.gz
+cd cliptraylt-v1.0.0-linux-*
+./install.sh
+```
+
+### Option 3: Build from Source
 
 ```bash
 git clone https://github.com/rabbanyhmm/ClipTrayLT.git
@@ -52,7 +77,7 @@ cd ClipTrayLT
 ./install.sh
 ```
 
-The installer builds the native binary, sets up persistent udev permissions (no root/`sudo` needed at runtime), configures the `Super+V` shortcut, and registers a background user service.
+The installer sets up persistent udev permissions (no root/`sudo` needed at runtime), configures the `Super+V` shortcut, and registers a background user service.
 
 ### Updating
 
