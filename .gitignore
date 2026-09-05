@@ -8,4 +8,8 @@ __pycache__/
 *.swp
 
 build/
+dist/
+*.deb
+*.tar.gz
+*.sha256
 
