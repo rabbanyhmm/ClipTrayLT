@@ -31,7 +31,7 @@
 
 namespace fs = std::filesystem;
 
-// Pass user session environment to root process
+// Pass user session environment to root process if executed under sudo
 static void setupRootDisplayEnvironment() {
     if (geteuid() != 0) return;
 
@@ -75,8 +75,26 @@ static void setupRootDisplayEnvironment() {
     }
 }
 
+static std::string getSocketPath() {
+    const char* xdg = std::getenv("XDG_RUNTIME_DIR");
+    if (xdg && fs::exists(xdg)) {
+        return std::string(xdg) + "/cliptraylt_ipc.sock";
+    }
+    return "/tmp/cliptraylt_ipc_" + std::to_string(getuid()) + ".sock";
+}
+
+static std::string getLockFilePath() {
+    const char* xdg = std::getenv("XDG_RUNTIME_DIR");
+    if (xdg && fs::exists(xdg)) {
+        return std::string(xdg) + "/cliptraylt.lock";
+    }
+    return "/tmp/cliptraylt_" + std::to_string(getuid()) + ".lock";
+}
+
 static bool sendIpcCommand(const std::string& command) {
-    const std::vector<std::string> socket_paths = {
+    std::vector<std::string> socket_paths = {
+        getSocketPath(),
+        "/tmp/cliptraylt_ipc_" + std::to_string(getuid()) + ".sock",
         "/tmp/cliptraylt_ipc_socket",
         "/tmp/simpleclipboard_ipc_socket"
     };
@@ -100,8 +118,8 @@ static bool sendIpcCommand(const std::string& command) {
 
 static void printVersion() {
     std::cout << "ClipTray LT version 1.0.0 (Linux x86_64)\n"
-              << "Native lightweight Windows 10-style clipboard flyout manager.\n"
-              << "Project URL: https://github.com/rabbanyhmm/ClipTrayLT\n";
+              << "Lightweight clipboard flyout manager for Linux.\n"
+              << "https://github.com/rabbanyhmm/ClipTrayLT\n";
 }
 
 static void printHelp(const char* prog) {
@@ -111,7 +129,7 @@ static void printHelp(const char* prog) {
         p = p.substr(last_slash + 1);
     }
 
-    std::cout << "ClipTray LT - Lightweight Windows 10-Style Clipboard Flyout for Linux\n\n"
+    std::cout << "ClipTray LT - Lightweight Clipboard Flyout Manager for Linux\n\n"
               << "USAGE:\n"
               << "  " << p << " [OPTIONS]\n"
               << "  " << p << " config <COMMAND> [ARGS...]\n\n"
@@ -339,10 +357,8 @@ int main(int argc, char *argv[]) {
 
     setupRootDisplayEnvironment();
 
-    const QString socket_name = "cliptraylt_ipc_socket";
-
-    // Single-instance process lock
-    int lock_fd = open("/tmp/cliptraylt_instance.lock", O_CREAT | O_RDWR, 0666);
+    std::string lock_file = getLockFilePath();
+    int lock_fd = open(lock_file.c_str(), O_CREAT | O_RDWR, 0666);
     if (lock_fd >= 0) {
         fchmod(lock_fd, 0666);
     }
@@ -359,7 +375,7 @@ int main(int argc, char *argv[]) {
     app.setQuitOnLastWindowClosed(false);
 
     std::cout << "===================================================\n";
-    std::cout << "        ClipTray LT (Windows 10 Edition)           \n";
+    std::cout << "                 ClipTray LT                       \n";
     std::cout << "===================================================\n";
 
     // Load lightweight configuration from INI or defaults
@@ -373,7 +389,7 @@ int main(int argc, char *argv[]) {
     // Exactly ONE single Flyout window in memory (pre-warmed for zero-delay display)
     auto* window = new FlyoutWindow(storage, paste_injector, clip_daemon);
 
-    // Hardware Evdev Mouse & Escape Sniffer (Root level)
+    // Hardware Evdev Mouse & Escape Sniffer
     auto* evdev = new EvdevListener(&app);
 
     // Global X11/Xwayland Hotkey Grabber:
@@ -411,18 +427,19 @@ int main(int argc, char *argv[]) {
     if (evdev->start()) {
         std::cout << "[✓] Mouse Click & Escape Sniffer ACTIVE.\n";
     } else {
-        std::cerr << "[!] Could not start hardware sniffer directly. Are you running with root / sudo?\n";
+        std::cerr << "[!] Note: Hardware sniffer requires read access to /dev/input/event*.\n";
     }
 
     // Local IPC socket server
+    std::string sock_path = getSocketPath();
+    unlink(sock_path.c_str());
+    QLocalServer::removeServer(QString::fromStdString(sock_path));
+
     auto* ipc = new QLocalServer(&app);
-    QLocalServer::removeServer(socket_name);
-    QLocalServer::removeServer("simpleclipboard_ipc_socket");
-    if (ipc->listen(socket_name)) {
-        chmod(("/tmp/" + socket_name.toStdString()).c_str(), 0666);
-        // Create backwards compatible symlink
-        unlink("/tmp/simpleclipboard_ipc_socket");
-        (void)symlink(("/tmp/" + socket_name.toStdString()).c_str(), "/tmp/simpleclipboard_ipc_socket");
+    if (ipc->listen(QString::fromStdString(sock_path))) {
+        chmod(sock_path.c_str(), 0666);
+        unlink("/tmp/cliptraylt_ipc_socket");
+        (void)symlink(sock_path.c_str(), "/tmp/cliptraylt_ipc_socket");
 
         QObject::connect(ipc, &QLocalServer::newConnection, [ipc, window, storage, &app]() {
             QLocalSocket* sock = ipc->nextPendingConnection();
@@ -456,7 +473,7 @@ int main(int argc, char *argv[]) {
     auto* tray_icon = new QSystemTrayIcon(createTrayIcon(), &app);
     auto* tray_menu = new QMenu();
 
-    auto* show_action = tray_menu->addAction("Show Clipboard (Win+V)");
+    auto* show_action = tray_menu->addAction("Show Clipboard (Super+V)");
     QObject::connect(show_action, &QAction::triggered, window, &FlyoutWindow::showFlyout);
 
     auto* clear_action = tray_menu->addAction("Clear History");
@@ -473,8 +490,8 @@ int main(int argc, char *argv[]) {
     tray_icon->setContextMenu(tray_menu);
     tray_icon->show();
 
-    std::cout << "[Ready] Monitoring all system copies (Max " << Config::get().max_items << " items, "
-              << (Config::get().save_to_disk ? "persistent on disk" : "in-memory only, pure RAM") << ").\n";
+    std::cout << "[Ready] Monitoring clipboard (Max " << Config::get().max_items << " items, "
+              << (Config::get().save_to_disk ? "persistent on disk" : "in-memory RAM only") << ").\n";
     std::cout << "[Ready] Press SUPER + V to toggle flyout.\n";
     std::cout << "[Ready] Click anywhere outside to dismiss.\n";
 
