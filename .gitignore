@@ -7,5 +7,5 @@ __pycache__/
 .vscode/
 *.swp
 
-cpp/build/
+build/
 

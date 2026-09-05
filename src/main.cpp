@@ -30,13 +30,8 @@ static void setupRootDisplayEnvironment() {
     if (geteuid() != 0) return;
 
     const char* sudo_user = std::getenv("SUDO_USER");
-    std::string user_name = sudo_user ? sudo_user : "rabbany";
-    std::string uid = "1000";
-
-    struct passwd* pw = getpwnam(user_name.c_str());
-    if (pw) {
-        uid = std::to_string(pw->pw_uid);
-    }
+    struct passwd* pw = sudo_user ? getpwnam(sudo_user) : getpwuid(getuid());
+    std::string uid = pw ? std::to_string(pw->pw_uid) : "1000";
 
     if (!std::getenv("XDG_RUNTIME_DIR")) {
         std::string run_user = "/run/user/" + uid;

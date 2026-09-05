@@ -1,29 +1,41 @@
 #!/bin/bash
-# Registers Super+V in GNOME desktop settings to trigger WinClipboard app
+# Script to register Super+V global shortcut in GNOME Desktop settings
+set -e
 
-VENV_PYTHON="/home/rabbany/Desktop/ClipBoard/.venv/bin/python"
-MAIN_PY="/home/rabbany/Desktop/ClipBoard/main.py"
-TOGGLE_CMD="$VENV_PYTHON $MAIN_PY --toggle"
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TRIGGER="$DIR/build/simpleclipboard-trigger"
 
-echo "Configuring Linux GNOME desktop shortcut Super+V -> $TOGGLE_CMD"
-
-# GNOME custom keybinding path setup
-KEYBIND_PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom-win-clipboard/"
-
-# Update GNOME custom keybindings list
-EXISTING=$(gsettings get org.gnome.settings-daemon.plugins.media-keys custom-keybindings)
-if [[ "$EXISTING" != *"$KEYBIND_PATH"* ]]; then
-    if [[ "$EXISTING" == "@as []" ]] || [[ "$EXISTING" == "[]" ]]; then
-        gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "['$KEYBIND_PATH']"
-    else
-        NEW_LIST=$(echo "$EXISTING" | sed "s|\]|, '$KEYBIND_PATH']|")
-        gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "$NEW_LIST"
-    fi
+if [ ! -f "$TRIGGER" ]; then
+    echo "Building trigger CLI..."
+    cmake -B "$DIR/build" -S "$DIR"
+    cmake --build "$DIR/build" --target simpleclipboard-trigger
 fi
 
-# Set custom keybinding properties
-gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$KEYBIND_PATH name 'WinClipboard Flyout'
-gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$KEYBIND_PATH command "$TOGGLE_CMD"
-gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$KEYBIND_PATH binding '<Super>v'
+if [ -f "/usr/local/bin/simpleclipboard-trigger" ]; then
+    COMMAND="/usr/local/bin/simpleclipboard-trigger"
+else
+    COMMAND="$TRIGGER"
+fi
 
-echo "GNOME shortcut setup complete. Super+V will now trigger the Clipboard app natively!"
+NAME="Windows 10 Clipboard Flyout"
+BINDING="<Super>v"
+
+echo "Configuring GNOME Custom Shortcut for Super+V..."
+
+CURRENT_LIST=$(gsettings get org.gnome.settings-daemon.plugins.media-keys custom-keybindings)
+NEW_PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/simpleclipboard-native/"
+
+if [[ "$CURRENT_LIST" != *"$NEW_PATH"* ]]; then
+    if [ "$CURRENT_LIST" == "@as []" ] || [ -z "$CURRENT_LIST" ]; then
+        UPDATED_LIST="['$NEW_PATH']"
+    else
+        UPDATED_LIST="${CURRENT_LIST%]*}, '$NEW_PATH']"
+    fi
+    gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "$UPDATED_LIST"
+fi
+
+gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$NEW_PATH name "$NAME"
+gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$NEW_PATH command "$COMMAND"
+gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$NEW_PATH binding "$BINDING"
+
+echo "✓ Registered Super+V shortcut -> '$COMMAND'"
