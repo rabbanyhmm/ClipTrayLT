@@ -9,8 +9,16 @@ on:
 
 jobs:
   build-and-test:
-    name: Build & Test (Ubuntu x86_64)
-    runs-on: ubuntu-latest
+    name: Build & Test (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            os: ubuntu-24.04
+          - arch: aarch64
+            os: ubuntu-24.04-arm
 
     steps:
       - name: Checkout repository

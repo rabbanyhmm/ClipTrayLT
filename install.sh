@@ -6,28 +6,33 @@ echo "==> Installing ClipTray LT..."
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$DIR"
 
-# 1. Install dependencies if apt is available
-if command -v apt-get >/dev/null 2>&1; then
-    echo "==> Checking build dependencies..."
-    sudo apt-get update -qq || true
-    sudo apt-get install -y -qq build-essential cmake qt6-base-dev libevdev-dev libsqlite3-dev libatspi2.0-dev libglib2.0-dev || true
+# 1. Check for pre-built binaries or build from source
+if [[ -f "$DIR/bin/cliptraylt" && -f "$DIR/bin/cliptraylt-trigger" ]]; then
+    echo "==> Found pre-built binaries in bin/."
+    BIN_DIR="$DIR/bin"
+else
+    if command -v apt-get >/dev/null 2>&1; then
+        echo "==> Checking build dependencies..."
+        sudo apt-get update -qq || true
+        sudo apt-get install -y -qq build-essential cmake qt6-base-dev libevdev-dev libsqlite3-dev libatspi2.0-dev libglib2.0-dev || true
+    fi
+
+    echo "==> Building binaries from source..."
+    cmake -B "$DIR/build" -S "$DIR" -DCMAKE_BUILD_TYPE=Release
+    cmake --build "$DIR/build" -j"$(nproc)"
+    BIN_DIR="$DIR/build"
 fi
 
-# 2. Build Release Binaries
-echo "==> Building binaries..."
-cmake -B "$DIR/build" -S "$DIR" -DCMAKE_BUILD_TYPE=Release
-cmake --build "$DIR/build" -j"$(nproc)"
-
-# 3. Stop old daemon if running
+# 2. Stop old daemon if running
 echo "==> Stopping any previous instances..."
-"$DIR/build/cliptraylt" --stop 2>/dev/null || true
+"$BIN_DIR/cliptraylt" --stop 2>/dev/null || true
 pkill -f cliptraylt 2>/dev/null || true
 pkill -f simpleclipboard 2>/dev/null || true
 
-# 4. Install binaries
+# 3. Install binaries
 echo "==> Installing to /usr/local/bin..."
-sudo install -m 755 "$DIR/build/cliptraylt" /usr/local/bin/cliptraylt
-sudo install -m 755 "$DIR/build/cliptraylt-trigger" /usr/local/bin/cliptraylt-trigger
+sudo install -m 755 "$BIN_DIR/cliptraylt" /usr/local/bin/cliptraylt
+sudo install -m 755 "$BIN_DIR/cliptraylt-trigger" /usr/local/bin/cliptraylt-trigger
 sudo ln -sf /usr/local/bin/cliptraylt /usr/local/bin/simpleclipboard-native
 sudo ln -sf /usr/local/bin/cliptraylt-trigger /usr/local/bin/simpleclipboard-trigger
 
