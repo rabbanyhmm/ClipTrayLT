@@ -37,7 +37,6 @@ public:
 protected:
     void keyPressEvent(QKeyEvent* event) override;
     bool eventFilter(QObject* watched, QEvent* event) override;
-    void changeEvent(QEvent* event) override;
 
 private slots:
     void onCardClicked(int64_t id);
@@ -64,7 +63,6 @@ private:
     std::vector<ItemCard*> cards_;
     int selected_index_ = -1;
     std::atomic<bool> history_dirty_{true};
-    std::atomic<bool> was_clicked_inside_{false};
     std::chrono::steady_clock::time_point last_show_time_;
     QPointer<QParallelAnimationGroup> anim_group_ = nullptr;
     unsigned long target_window_ = 0;

@@ -55,6 +55,47 @@ static void restoreActiveX11Window(unsigned long win) {
     XCloseDisplay(display);
 }
 
+static void forceX11WindowActive(unsigned long win) {
+    if (win == 0) return;
+    Display* display = XOpenDisplay(nullptr);
+    if (!display) return;
+
+    Atom net_active = XInternAtom(display, "_NET_ACTIVE_WINDOW", False);
+    XEvent event;
+    std::memset(&event, 0, sizeof(event));
+    event.xclient.type = ClientMessage;
+    event.xclient.window = win;
+    event.xclient.message_type = net_active;
+    event.xclient.format = 32;
+    event.xclient.data.l[0] = 2; // 2 = user direct action / pager
+    event.xclient.data.l[1] = CurrentTime;
+    event.xclient.data.l[2] = 0;
+
+    XSendEvent(display, DefaultRootWindow(display), False,
+               SubstructureRedirectMask | SubstructureNotifyMask, &event);
+    XSetInputFocus(display, win, RevertToPointerRoot, CurrentTime);
+    XRaiseWindow(display, win);
+    XFlush(display);
+    XCloseDisplay(display);
+}
+
+static void setX11SkipTaskbar(unsigned long win) {
+    if (win == 0) return;
+    Display* display = XOpenDisplay(nullptr);
+    if (!display) return;
+
+    Atom net_state = XInternAtom(display, "_NET_WM_STATE", False);
+    Atom skip_taskbar = XInternAtom(display, "_NET_WM_STATE_SKIP_TASKBAR", False);
+    Atom skip_pager = XInternAtom(display, "_NET_WM_STATE_SKIP_PAGER", False);
+    Atom stay_top = XInternAtom(display, "_NET_WM_STATE_ABOVE", False);
+
+    Atom atoms[3] = { skip_taskbar, skip_pager, stay_top };
+    XChangeProperty(display, win, net_state, XA_ATOM, 32, PropModeReplace,
+                    reinterpret_cast<unsigned char*>(atoms), 3);
+    XFlush(display);
+    XCloseDisplay(display);
+}
+
 // Clean up X11 macro pollution so Qt symbols are unaffected
 #undef KeyPress
 #undef KeyRelease
@@ -77,7 +118,7 @@ FlyoutWindow::FlyoutWindow(std::shared_ptr<StorageManager> storage,
       clip_daemon_(clip_daemon),
       last_show_time_(std::chrono::steady_clock::now() - std::chrono::seconds(10)) {
 
-    setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
+    setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Dialog);
     setAttribute(Qt::WA_TranslucentBackground, true);
     setFocusPolicy(Qt::StrongFocus);
     setFixedSize(360, 490);
@@ -207,7 +248,6 @@ void FlyoutWindow::toggleFlyout() {
 
 void FlyoutWindow::showFlyout() {
     last_show_time_ = std::chrono::steady_clock::now();
-    was_clicked_inside_ = false;
 
     // Save previous active window for focus restoration on paste
     unsigned long active = getActiveX11Window();
@@ -241,9 +281,18 @@ void FlyoutWindow::showFlyout() {
     show();
     raise();
     activateWindow();
+    forceX11WindowActive(winId());
+    setX11SkipTaskbar(winId());
     if (search_bar_) {
-        search_bar_->setFocus();
+        search_bar_->setFocus(Qt::OtherFocusReason);
     }
+
+    QTimer::singleShot(30, this, [this]() {
+        forceX11WindowActive(winId());
+        if (search_bar_) {
+            search_bar_->setFocus(Qt::OtherFocusReason);
+        }
+    });
 
     anim_group_ = new QParallelAnimationGroup(this);
 
@@ -266,8 +315,9 @@ void FlyoutWindow::showFlyout() {
     connect(anim_group_, &QParallelAnimationGroup::finished, this, [this, target_pos]() {
         move(target_pos);
         setWindowOpacity(1.0);
+        forceX11WindowActive(winId());
         if (search_bar_) {
-            search_bar_->setFocus();
+            search_bar_->setFocus(Qt::OtherFocusReason);
         }
     });
 
@@ -340,17 +390,14 @@ void FlyoutWindow::handleGlobalClick() {
         return;
     }
 
-    was_clicked_inside_ = false;
+    QPoint mouse_pt = QCursor::pos();
+    if (geometry().contains(mouse_pt)) {
+        // Mouse click was inside the flyout window - do not dismiss!
+        return;
+    }
 
-    QTimer::singleShot(40, this, [this]() {
-        if (!isVisible()) return;
-        if (was_clicked_inside_) {
-            was_clicked_inside_ = false;
-            return;
-        }
-        std::cout << "[Flyout] Confirmed outside click. Dismissing flyout.\n" << std::flush;
-        hideFlyout();
-    });
+    std::cout << "[Flyout] Confirmed outside click at (" << mouse_pt.x() << ", " << mouse_pt.y() << "). Dismissing flyout.\n" << std::flush;
+    hideFlyout();
 }
 
 void FlyoutWindow::reloadHistory(const QString& query) {
@@ -389,9 +436,6 @@ void FlyoutWindow::reloadHistory(const QString& query) {
             card->setToolTip(QString("Click or press Enter to paste (Alt+%1)").arg(idx + 1));
         }
         connect(card, &ItemCard::clicked, this, &FlyoutWindow::onCardClicked);
-        connect(card, &ItemCard::cardInteracted, this, [this]() {
-            was_clicked_inside_ = true;
-        });
         connect(card, &ItemCard::pinToggled, this, &FlyoutWindow::onPinToggled);
         connect(card, &ItemCard::deleteRequested, this, &FlyoutWindow::onDeleteRequested);
 
@@ -529,10 +573,6 @@ void FlyoutWindow::keyPressEvent(QKeyEvent* event) {
 }
 
 bool FlyoutWindow::eventFilter(QObject* watched, QEvent* event) {
-    if (event->type() == QEvent::MouseButtonPress) {
-        was_clicked_inside_ = true;
-    }
-
     if (watched == search_bar_ && event->type() == QEvent::KeyPress) {
         auto* ke = static_cast<QKeyEvent*>(event);
         if (ke->key() == Qt::Key_Down) {
@@ -577,15 +617,3 @@ bool FlyoutWindow::eventFilter(QObject* watched, QEvent* event) {
     return QWidget::eventFilter(watched, event);
 }
 
-void FlyoutWindow::changeEvent(QEvent* event) {
-    if (event->type() == QEvent::ActivationChange) {
-        if (!isActiveWindow() && isVisible()) {
-            auto now = std::chrono::steady_clock::now();
-            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_show_time_).count();
-            if (elapsed > 250) {
-                hideFlyout();
-            }
-        }
-    }
-    QWidget::changeEvent(event);
-}
