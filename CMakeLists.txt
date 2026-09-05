@@ -32,6 +32,7 @@ set(SOURCES
     src/core/caret_detector.cpp
     src/core/global_hotkey.cpp
     src/ui/item_card.cpp
+    src/ui/smooth_scroll_area.cpp
     src/ui/flyout_window.cpp
     src/ui/simple_test_window.cpp
     src/main.cpp

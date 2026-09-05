@@ -42,20 +42,27 @@ const QString WIN10_FLYOUT_STYLE = R"(
     }
 
     QScrollBar:vertical {
-        background: #1f1f1f;
-        width: 8px;
+        background: transparent;
+        width: 6px;
         margin: 0px;
     }
     QScrollBar::handle:vertical {
-        background: #484848;
-        min-height: 25px;
-        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.22);
+        min-height: 28px;
+        border-radius: 3px;
     }
     QScrollBar::handle:vertical:hover {
-        background: #606060;
+        background: rgba(255, 255, 255, 0.45);
+    }
+    QScrollBar::handle:vertical:pressed {
+        background: rgba(255, 255, 255, 0.65);
     }
     QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
         height: 0px;
+        background: transparent;
+    }
+    QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+        background: transparent;
     }
 
     /* Card Styling */

@@ -63,8 +63,8 @@ FlyoutWindow::FlyoutWindow(std::shared_ptr<StorageManager> storage,
 
     main_layout->addLayout(header_layout);
 
-    // Scroll Area
-    scroll_area_ = new QScrollArea(container_);
+    // Smooth Kinetic Scroll Area
+    scroll_area_ = new SmoothScrollArea(container_);
     scroll_area_->setObjectName("HistoryScroll");
     scroll_area_->setFocusPolicy(Qt::NoFocus);
     scroll_area_->setWidgetResizable(true);

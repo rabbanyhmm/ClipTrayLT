@@ -17,6 +17,7 @@
 #include "paste_injector.h"
 #include "clipboard_daemon.h"
 #include "item_card.h"
+#include "smooth_scroll_area.h"
 
 class FlyoutWindow : public QWidget {
     Q_OBJECT
@@ -48,7 +49,7 @@ private:
     std::shared_ptr<ClipboardDaemon> clip_daemon_;
 
     QWidget* container_ = nullptr;
-    QScrollArea* scroll_area_ = nullptr;
+    SmoothScrollArea* scroll_area_ = nullptr;
     QWidget* list_container_ = nullptr;
     QVBoxLayout* list_layout_ = nullptr;
     QWidget* empty_state_ = nullptr;
