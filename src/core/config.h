@@ -12,7 +12,7 @@ struct Config {
     bool save_to_disk = false;
 
     // Flyout appearance and dismissal animation durations (in milliseconds)
-    int anim_appear_ms = 200;
+    int anim_appear_ms = 140;
     int anim_hide_ms = 140;
 
     // Privacy: automatically ignore copies from password managers (KeePass, Bitwarden, 1Password, etc.)

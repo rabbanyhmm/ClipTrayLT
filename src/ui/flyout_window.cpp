@@ -242,11 +242,13 @@ FlyoutWindow::FlyoutWindow(std::shared_ptr<StorageManager> storage,
     reloadHistory("");
     history_dirty_ = false;
 
-    // Real-time clipboard update
+    // Real-time clipboard update: pre-warm history in memory for 0ms open latency
     connect(clip_daemon_.get(), &ClipboardDaemon::historyUpdated, this, [this]() {
-        history_dirty_ = true;
         if (isVisible()) {
             reloadHistory(search_bar_ ? search_bar_->text().trimmed() : "");
+            history_dirty_ = false;
+        } else {
+            reloadHistory("");
             history_dirty_ = false;
         }
     });
@@ -282,11 +284,13 @@ void FlyoutWindow::showFlyout() {
     }
     selected_index_ = -1;
 
-    reloadHistory("");
-    history_dirty_ = false;
+    if (history_dirty_) {
+        reloadHistory("");
+        history_dirty_ = false;
+    }
 
     QPoint target_pos = calculateBottomRightPosition();
-    QPoint start_pos = target_pos + QPoint(0, 22);
+    QPoint start_pos = target_pos + QPoint(0, 10);
 
     if (anim_group_) {
         anim_group_->stop();
@@ -299,7 +303,7 @@ void FlyoutWindow::showFlyout() {
         hide_anim_ = nullptr;
     }
 
-    qreal start_opacity = isVisible() ? windowOpacity() : 0.0;
+    qreal start_opacity = isVisible() ? windowOpacity() : 0.08;
     QPoint curr_pos = isVisible() ? pos() : start_pos;
 
     move(curr_pos);
@@ -312,13 +316,6 @@ void FlyoutWindow::showFlyout() {
     if (search_bar_) {
         search_bar_->setFocus(Qt::OtherFocusReason);
     }
-
-    QTimer::singleShot(30, this, [this]() {
-        forceX11WindowActive(winId());
-        if (search_bar_) {
-            search_bar_->setFocus(Qt::OtherFocusReason);
-        }
-    });
 
     anim_group_ = new QParallelAnimationGroup(this);
 
