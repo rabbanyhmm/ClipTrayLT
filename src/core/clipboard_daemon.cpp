@@ -1,9 +1,80 @@
 #include "clipboard_daemon.h"
+#include "config.h"
 #include <QGuiApplication>
 #include <QMimeData>
 #include <QImage>
 #include <QBuffer>
 #include <iostream>
+#include <cctype>
+#include <vector>
+#include <string>
+#include <X11/Xlib.h>
+#include <X11/Xatom.h>
+#include <X11/Xutil.h>
+
+static bool isPasswordManagerWindowActive() {
+    Display* display = XOpenDisplay(nullptr);
+    if (!display) return false;
+
+    Atom net_active = XInternAtom(display, "_NET_ACTIVE_WINDOW", False);
+    Atom actual_type;
+    int actual_format;
+    unsigned long nitems, bytes_after;
+    unsigned char* prop = nullptr;
+    Window active_win = None;
+
+    if (XGetWindowProperty(display, DefaultRootWindow(display), net_active, 0, 1, False,
+                           XA_WINDOW, &actual_type, &actual_format, &nitems, &bytes_after, &prop) == Success && prop) {
+        if (actual_type == XA_WINDOW && actual_format == 32 && nitems > 0) {
+            active_win = *reinterpret_cast<Window*>(prop);
+        }
+        XFree(prop);
+    }
+
+    bool is_pwm = false;
+    if (active_win != None) {
+        XClassHint hint;
+        if (XGetClassHint(display, active_win, &hint) != 0) {
+            std::string res_name = hint.res_name ? hint.res_name : "";
+            std::string res_class = hint.res_class ? hint.res_class : "";
+            if (hint.res_name) XFree(hint.res_name);
+            if (hint.res_class) XFree(hint.res_class);
+
+            std::string lower_name = res_name;
+            for (auto& c : lower_name) c = std::tolower(c);
+            std::string lower_class = res_class;
+            for (auto& c : lower_class) c = std::tolower(c);
+
+            const std::vector<std::string> pwm_keywords = {
+                "keepass", "bitwarden", "1password", "seahorse",
+                "authpass", "enpass", "lastpass", "buttercup", "passman"
+            };
+
+            for (const auto& kw : pwm_keywords) {
+                if (lower_name.find(kw) != std::string::npos || lower_class.find(kw) != std::string::npos) {
+                    is_pwm = true;
+                    std::cout << "[ClipboardDaemon] Detected active password manager window ('"
+                              << res_class << "'). Ignoring clipboard capture for privacy.\n" << std::flush;
+                    break;
+                }
+            }
+        }
+    }
+
+    XCloseDisplay(display);
+    return is_pwm;
+}
+
+// Clean up X11 macro pollution so Qt symbols are unaffected
+#undef KeyPress
+#undef KeyRelease
+#undef FocusIn
+#undef FocusOut
+#undef FontChange
+#undef None
+#undef Bool
+#undef Status
+#undef CursorShape
 
 ClipboardDaemon::ClipboardDaemon(std::shared_ptr<StorageManager> storage, QObject* parent)
     : QObject(parent), storage_(storage) {
@@ -29,6 +100,26 @@ void ClipboardDaemon::onClipboardChanged() {
     QClipboard* clipboard = QGuiApplication::clipboard();
     const QMimeData* mime = clipboard->mimeData(QClipboard::Clipboard);
     if (!mime) return;
+
+    if (Config::get().ignore_password_managers) {
+        // 1. Check sensitive MIME types set by password managers (KeePassXC, 1Password, etc.)
+        for (const QString& fmt : mime->formats()) {
+            QString lower = fmt.toLower();
+            if (lower.contains("password") ||
+                lower.contains("secret") ||
+                lower.contains("concealed") ||
+                lower.contains("keepass")) {
+                std::cout << "[ClipboardDaemon] Ignored copy marked as sensitive/secret (format: "
+                          << fmt.toStdString() << ").\n" << std::flush;
+                return;
+            }
+        }
+
+        // 2. Check if active window is a known password manager application
+        if (isPasswordManagerWindowActive()) {
+            return;
+        }
+    }
 
     if (mime->hasText()) {
         QString text = mime->text();

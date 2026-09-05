@@ -46,6 +46,7 @@ void Config::load() {
     QSettings settings(QString::fromStdString(config_path), QSettings::IniFormat);
     max_items = settings.value("Clipboard/max_items", max_items).toInt();
     save_to_disk = settings.value("Clipboard/save_to_disk", save_to_disk).toBool();
+    ignore_password_managers = settings.value("Privacy/ignore_password_managers", ignore_password_managers).toBool();
     anim_appear_ms = settings.value("Animation/appear_ms", anim_appear_ms).toInt();
     anim_hide_ms = settings.value("Animation/hide_ms", anim_hide_ms).toInt();
     std::string custom_db = settings.value("Storage/db_path", QString::fromStdString(db_path)).toString().toStdString();
@@ -59,6 +60,7 @@ void Config::load() {
 
     std::cout << "[Config] Loaded configuration: max_items=" << max_items
               << ", save_to_disk=" << (save_to_disk ? "true" : "false")
+              << ", ignore_passwords=" << (ignore_password_managers ? "true" : "false")
               << ", anim_appear=" << anim_appear_ms << "ms"
               << ", anim_hide=" << anim_hide_ms << "ms\n";
 }
@@ -69,6 +71,7 @@ void Config::save() {
 
     settings.setValue("Clipboard/max_items", max_items);
     settings.setValue("Clipboard/save_to_disk", save_to_disk);
+    settings.setValue("Privacy/ignore_password_managers", ignore_password_managers);
     settings.setValue("Animation/appear_ms", anim_appear_ms);
     settings.setValue("Animation/hide_ms", anim_hide_ms);
     settings.setValue("Storage/db_path", QString::fromStdString(db_path));

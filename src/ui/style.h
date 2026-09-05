@@ -36,6 +36,26 @@ const QString WIN10_FLYOUT_STYLE = R"(
         background-color: #404040;
     }
 
+    /* Search Bar */
+    QLineEdit#SearchBar {
+        background-color: #2b2b2b;
+        color: #f1f1f1;
+        border: 1px solid #3c3c3c;
+        border-radius: 4px;
+        padding: 6px 10px;
+        font-size: 13px;
+        font-family: 'Segoe UI', 'Ubuntu', 'Cantarell', sans-serif;
+        selection-background-color: #0078d4;
+        selection-color: #ffffff;
+    }
+    QLineEdit#SearchBar:focus {
+        border: 1px solid #0078d4;
+        background-color: #323232;
+    }
+    QLineEdit#SearchBar::placeholder {
+        color: #888888;
+    }
+
     QScrollArea#HistoryScroll {
         background: transparent;
         border: none;
@@ -74,6 +94,10 @@ const QString WIN10_FLYOUT_STYLE = R"(
     QWidget#ItemCard[selected="true"] {
         background-color: #383838;
         border: 1px solid #0078d4;
+    }
+    QWidget#ItemCard[selected="true"]:hover {
+        background-color: #3d3d3d;
+        border: 1px solid #1685e0;
     }
     QWidget#ItemCard:hover {
         background-color: #353535;

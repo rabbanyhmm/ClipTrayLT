@@ -11,6 +11,61 @@
 #include <QTimer>
 #include <iostream>
 #include <thread>
+#include <cstring>
+#include <X11/Xlib.h>
+#include <X11/Xatom.h>
+
+static unsigned long getActiveX11Window() {
+    Display* display = XOpenDisplay(nullptr);
+    if (!display) return 0;
+    Atom net_active = XInternAtom(display, "_NET_ACTIVE_WINDOW", False);
+    Atom actual_type;
+    int actual_format;
+    unsigned long nitems, bytes_after;
+    unsigned char* prop = nullptr;
+    unsigned long active_win = 0;
+    if (XGetWindowProperty(display, DefaultRootWindow(display), net_active, 0, 1, False,
+                           XA_WINDOW, &actual_type, &actual_format, &nitems, &bytes_after, &prop) == Success && prop) {
+        if (actual_type == XA_WINDOW && actual_format == 32 && nitems > 0) {
+            active_win = *reinterpret_cast<Window*>(prop);
+        }
+        XFree(prop);
+    }
+    XCloseDisplay(display);
+    return active_win;
+}
+
+static void restoreActiveX11Window(unsigned long win) {
+    if (win == 0) return;
+    Display* display = XOpenDisplay(nullptr);
+    if (!display) return;
+    XEvent event;
+    std::memset(&event, 0, sizeof(event));
+    event.xclient.type = ClientMessage;
+    event.xclient.window = win;
+    event.xclient.message_type = XInternAtom(display, "_NET_ACTIVE_WINDOW", False);
+    event.xclient.format = 32;
+    event.xclient.data.l[0] = 1; // 1 = normal application request
+    event.xclient.data.l[1] = CurrentTime;
+    event.xclient.data.l[2] = 0;
+    XSendEvent(display, DefaultRootWindow(display), False,
+               SubstructureRedirectMask | SubstructureNotifyMask, &event);
+    XSetInputFocus(display, win, RevertToPointerRoot, CurrentTime);
+    XFlush(display);
+    XCloseDisplay(display);
+}
+
+// Clean up X11 macro pollution so Qt symbols are unaffected
+#undef KeyPress
+#undef KeyRelease
+#undef FocusIn
+#undef FocusOut
+#undef FontChange
+#undef None
+#undef Bool
+#undef Status
+#undef CursorShape
+
 
 FlyoutWindow::FlyoutWindow(std::shared_ptr<StorageManager> storage,
                            std::shared_ptr<PasteInjector> paste_injector,
@@ -22,12 +77,10 @@ FlyoutWindow::FlyoutWindow(std::shared_ptr<StorageManager> storage,
       clip_daemon_(clip_daemon),
       last_show_time_(std::chrono::steady_clock::now() - std::chrono::seconds(10)) {
 
-    setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool | Qt::WindowDoesNotAcceptFocus);
+    setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
     setAttribute(Qt::WA_TranslucentBackground, true);
-    setAttribute(Qt::WA_ShowWithoutActivating, true);
-    setAttribute(Qt::WA_X11DoNotAcceptFocus, true);
-    setFocusPolicy(Qt::NoFocus);
-    setFixedSize(360, 480);
+    setFocusPolicy(Qt::StrongFocus);
+    setFixedSize(360, 490);
     setStyleSheet(Style::WIN10_FLYOUT_STYLE);
 
     auto* outer_layout = new QVBoxLayout(this);
@@ -45,7 +98,7 @@ FlyoutWindow::FlyoutWindow(std::shared_ptr<StorageManager> storage,
 
     auto* main_layout = new QVBoxLayout(container_);
     main_layout->setContentsMargins(14, 14, 14, 14);
-    main_layout->setSpacing(10);
+    main_layout->setSpacing(8);
 
     // Top Header: "Clipboard" + "Clear all"
     auto* header_layout = new QHBoxLayout();
@@ -63,6 +116,15 @@ FlyoutWindow::FlyoutWindow(std::shared_ptr<StorageManager> storage,
     header_layout->addWidget(clear_all_btn_);
 
     main_layout->addLayout(header_layout);
+
+    // Search Bar
+    search_bar_ = new QLineEdit(container_);
+    search_bar_->setObjectName("SearchBar");
+    search_bar_->setPlaceholderText("Search history...");
+    search_bar_->setClearButtonEnabled(true);
+    search_bar_->installEventFilter(this);
+    connect(search_bar_, &QLineEdit::textChanged, this, &FlyoutWindow::onSearchTextChanged);
+    main_layout->addWidget(search_bar_);
 
     // Smooth Kinetic Scroll Area
     scroll_area_ = new SmoothScrollArea(container_);
@@ -94,16 +156,16 @@ FlyoutWindow::FlyoutWindow(std::shared_ptr<StorageManager> storage,
     empty_icon->setAlignment(Qt::AlignCenter);
     empty_layout->addWidget(empty_icon);
 
-    auto* empty_title = new QLabel("Your clipboard is empty", empty_state_);
-    empty_title->setObjectName("EmptyTitle");
-    empty_title->setAlignment(Qt::AlignCenter);
-    empty_layout->addWidget(empty_title);
+    empty_title_ = new QLabel("Your clipboard is empty", empty_state_);
+    empty_title_->setObjectName("EmptyTitle");
+    empty_title_->setAlignment(Qt::AlignCenter);
+    empty_layout->addWidget(empty_title_);
 
-    auto* empty_subtitle = new QLabel("When you copy or cut text and images, they'll appear here.", empty_state_);
-    empty_subtitle->setObjectName("EmptySubtitle");
-    empty_subtitle->setWordWrap(true);
-    empty_subtitle->setAlignment(Qt::AlignCenter);
-    empty_layout->addWidget(empty_subtitle);
+    empty_subtitle_ = new QLabel("When you copy or cut text and images, they'll appear here.", empty_state_);
+    empty_subtitle_->setObjectName("EmptySubtitle");
+    empty_subtitle_->setWordWrap(true);
+    empty_subtitle_->setAlignment(Qt::AlignCenter);
+    empty_layout->addWidget(empty_subtitle_);
 
     main_layout->addWidget(empty_state_, 1);
     empty_state_->hide();
@@ -116,14 +178,14 @@ FlyoutWindow::FlyoutWindow(std::shared_ptr<StorageManager> storage,
 
     // Pre-calculate position and pre-load items in memory
     positionAtBottomRight();
-    reloadHistory();
+    reloadHistory("");
     history_dirty_ = false;
 
     // Real-time clipboard update
     connect(clip_daemon_.get(), &ClipboardDaemon::historyUpdated, this, [this]() {
         history_dirty_ = true;
         if (isVisible()) {
-            reloadHistory();
+            reloadHistory(search_bar_ ? search_bar_->text().trimmed() : "");
             history_dirty_ = false;
         }
     });
@@ -147,10 +209,21 @@ void FlyoutWindow::showFlyout() {
     last_show_time_ = std::chrono::steady_clock::now();
     was_clicked_inside_ = false;
 
-    if (history_dirty_.load()) {
-        reloadHistory();
-        history_dirty_ = false;
+    // Save previous active window for focus restoration on paste
+    unsigned long active = getActiveX11Window();
+    if (active != 0 && active != static_cast<unsigned long>(winId())) {
+        target_window_ = active;
     }
+
+    if (search_bar_) {
+        search_bar_->blockSignals(true);
+        search_bar_->clear();
+        search_bar_->blockSignals(false);
+    }
+    selected_index_ = -1;
+
+    reloadHistory("");
+    history_dirty_ = false;
 
     QPoint target_pos = calculateBottomRightPosition();
     QPoint start_pos = target_pos + QPoint(0, 22);
@@ -167,6 +240,10 @@ void FlyoutWindow::showFlyout() {
     setWindowOpacity(start_opacity);
     show();
     raise();
+    activateWindow();
+    if (search_bar_) {
+        search_bar_->setFocus();
+    }
 
     anim_group_ = new QParallelAnimationGroup(this);
 
@@ -189,6 +266,9 @@ void FlyoutWindow::showFlyout() {
     connect(anim_group_, &QParallelAnimationGroup::finished, this, [this, target_pos]() {
         move(target_pos);
         setWindowOpacity(1.0);
+        if (search_bar_) {
+            search_bar_->setFocus();
+        }
     });
 
     anim_group_->start(QAbstractAnimation::DeleteWhenStopped);
@@ -273,7 +353,7 @@ void FlyoutWindow::handleGlobalClick() {
     });
 }
 
-void FlyoutWindow::reloadHistory() {
+void FlyoutWindow::reloadHistory(const QString& query) {
     for (auto* card : cards_) {
         list_layout_->removeWidget(card);
         card->deleteLater();
@@ -281,11 +361,18 @@ void FlyoutWindow::reloadHistory() {
     cards_.clear();
     selected_index_ = -1;
 
-    // Load items up to Config limit
-    auto items = storage_->getItems();
+    // Load items matching search query up to Config limit
+    auto items = storage_->getItems(-1, query.toStdString());
     if (items.empty()) {
         scroll_area_->hide();
         clear_all_btn_->setEnabled(false);
+        if (query.isEmpty()) {
+            if (empty_title_) empty_title_->setText("Your clipboard is empty");
+            if (empty_subtitle_) empty_subtitle_->setText("When you copy or cut text and images, they'll appear here.");
+        } else {
+            if (empty_title_) empty_title_->setText("No results found");
+            if (empty_subtitle_) empty_subtitle_->setText(QString("No clipboard items match \"%1\"").arg(query));
+        }
         empty_state_->show();
         return;
     }
@@ -294,9 +381,13 @@ void FlyoutWindow::reloadHistory() {
     scroll_area_->show();
     clear_all_btn_->setEnabled(true);
 
+    int idx = 0;
     for (const auto& item : items) {
         auto* card = new ItemCard(item, list_container_);
         card->installEventFilter(this);
+        if (idx < 9) {
+            card->setToolTip(QString("Click or press Enter to paste (Alt+%1)").arg(idx + 1));
+        }
         connect(card, &ItemCard::clicked, this, &FlyoutWindow::onCardClicked);
         connect(card, &ItemCard::cardInteracted, this, [this]() {
             was_clicked_inside_ = true;
@@ -306,10 +397,16 @@ void FlyoutWindow::reloadHistory() {
 
         list_layout_->addWidget(card);
         cards_.push_back(card);
+        idx++;
     }
 
-    // Do NOT select or highlight any card by default - user must explicitly click!
-    selected_index_ = -1;
+    if (!query.isEmpty() && !cards_.empty()) {
+        updateSelection(0);
+    }
+}
+
+void FlyoutWindow::onSearchTextChanged(const QString& text) {
+    reloadHistory(text.trimmed());
 }
 
 void FlyoutWindow::updateSelection(int new_index) {
@@ -324,9 +421,19 @@ void FlyoutWindow::updateSelection(int new_index) {
     scroll_area_->ensureWidgetVisible(cards_[selected_index_]);
 }
 
+void FlyoutWindow::pasteCardAt(int index) {
+    if (index < 0 || index >= static_cast<int>(cards_.size())) return;
+    onCardClicked(cards_[index]->recordId());
+}
+
 void FlyoutWindow::onCardClicked(int64_t id) {
-    std::cout << "[Flyout] onCardClicked triggered by user click for ID=" << id << "\n" << std::flush;
+    std::cout << "[Flyout] onCardClicked triggered for ID=" << id << "\n" << std::flush;
     hideFlyout();
+
+    if (target_window_ != 0) {
+        restoreActiveX11Window(target_window_);
+        target_window_ = 0;
+    }
 
     auto item_opt = storage_->getItemById(id);
     if (!item_opt.has_value()) return;
@@ -353,7 +460,7 @@ void FlyoutWindow::onCardClicked(int64_t id) {
 
     auto injector = paste_injector_;
     std::thread([injector]() {
-        injector->paste(35);
+        injector->paste(45);
     }).detach();
 }
 
@@ -363,17 +470,21 @@ void FlyoutWindow::onPinToggled(int64_t id) {
 
 void FlyoutWindow::onDeleteRequested(int64_t id) {
     storage_->deleteItem(id);
-    reloadHistory();
+    reloadHistory(search_bar_ ? search_bar_->text().trimmed() : "");
 }
 
 void FlyoutWindow::onClearAllClicked() {
     storage_->clearUnpinned();
-    reloadHistory();
+    reloadHistory(search_bar_ ? search_bar_->text().trimmed() : "");
 }
 
 void FlyoutWindow::keyPressEvent(QKeyEvent* event) {
     if (event->key() == Qt::Key_Escape) {
-        hideFlyout();
+        if (search_bar_ && !search_bar_->text().isEmpty()) {
+            search_bar_->clear();
+        } else {
+            hideFlyout();
+        }
         event->accept();
         return;
     }
@@ -384,21 +495,36 @@ void FlyoutWindow::keyPressEvent(QKeyEvent* event) {
     }
 
     if (event->key() == Qt::Key_Down) {
-        int next_idx = (selected_index_ + 1) % static_cast<int>(cards_.size());
+        int next_idx = (selected_index_ < 0) ? 0 : (selected_index_ + 1) % static_cast<int>(cards_.size());
         updateSelection(next_idx);
         event->accept();
         return;
     }
 
     if (event->key() == Qt::Key_Up) {
-        int prev_idx = selected_index_ - 1;
-        if (prev_idx < 0) prev_idx = static_cast<int>(cards_.size()) - 1;
+        int prev_idx = (selected_index_ <= 0) ? static_cast<int>(cards_.size()) - 1 : selected_index_ - 1;
         updateSelection(prev_idx);
         event->accept();
         return;
     }
 
-    // No auto-paste on Enter/Return! Pasting only happens on explicit mouse click on a card!
+    if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
+        int idx = (selected_index_ >= 0 && selected_index_ < static_cast<int>(cards_.size())) ? selected_index_ : 0;
+        pasteCardAt(idx);
+        event->accept();
+        return;
+    }
+
+    // Direct number keys 1..9 if focus is outside the search bar
+    if (event->key() >= Qt::Key_1 && event->key() <= Qt::Key_9) {
+        int idx = event->key() - Qt::Key_1;
+        if (idx < static_cast<int>(cards_.size())) {
+            pasteCardAt(idx);
+            event->accept();
+            return;
+        }
+    }
+
     QWidget::keyPressEvent(event);
 }
 
@@ -406,5 +532,60 @@ bool FlyoutWindow::eventFilter(QObject* watched, QEvent* event) {
     if (event->type() == QEvent::MouseButtonPress) {
         was_clicked_inside_ = true;
     }
+
+    if (watched == search_bar_ && event->type() == QEvent::KeyPress) {
+        auto* ke = static_cast<QKeyEvent*>(event);
+        if (ke->key() == Qt::Key_Down) {
+            if (!cards_.empty()) {
+                int next_idx = (selected_index_ < 0) ? 0 : (selected_index_ + 1) % static_cast<int>(cards_.size());
+                updateSelection(next_idx);
+            }
+            return true;
+        }
+        if (ke->key() == Qt::Key_Up) {
+            if (!cards_.empty()) {
+                int prev_idx = (selected_index_ <= 0) ? static_cast<int>(cards_.size()) - 1 : selected_index_ - 1;
+                updateSelection(prev_idx);
+            }
+            return true;
+        }
+        if (ke->key() == Qt::Key_Return || ke->key() == Qt::Key_Enter) {
+            if (!cards_.empty()) {
+                int idx = (selected_index_ >= 0 && selected_index_ < static_cast<int>(cards_.size())) ? selected_index_ : 0;
+                pasteCardAt(idx);
+            }
+            return true;
+        }
+        if (ke->key() == Qt::Key_Escape) {
+            if (!search_bar_->text().isEmpty()) {
+                search_bar_->clear();
+            } else {
+                hideFlyout();
+            }
+            return true;
+        }
+        if ((ke->modifiers() & (Qt::AltModifier | Qt::ControlModifier)) &&
+            ke->key() >= Qt::Key_1 && ke->key() <= Qt::Key_9) {
+            int idx = ke->key() - Qt::Key_1;
+            if (idx < static_cast<int>(cards_.size())) {
+                pasteCardAt(idx);
+            }
+            return true;
+        }
+    }
+
     return QWidget::eventFilter(watched, event);
+}
+
+void FlyoutWindow::changeEvent(QEvent* event) {
+    if (event->type() == QEvent::ActivationChange) {
+        if (!isActiveWindow() && isVisible()) {
+            auto now = std::chrono::steady_clock::now();
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_show_time_).count();
+            if (elapsed > 250) {
+                hideFlyout();
+            }
+        }
+    }
+    QWidget::changeEvent(event);
 }

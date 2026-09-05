@@ -15,6 +15,9 @@ struct Config {
     int anim_appear_ms = 200;
     int anim_hide_ms = 160;
 
+    // Privacy: automatically ignore copies from password managers (KeePass, Bitwarden, 1Password, etc.)
+    bool ignore_password_managers = true;
+
     // Custom database path (leave empty for default ~/.local/share/cliptraylt/history.db)
     std::string db_path = "";
 
