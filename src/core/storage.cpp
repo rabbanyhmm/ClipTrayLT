@@ -26,7 +26,7 @@ static std::string getDefaultDbPath() {
             home_dir = "/tmp";
         }
     }
-    std::string dir = home_dir + "/.local/share/simpleclipboard";
+    std::string dir = home_dir + "/.local/share/cliptraylt";
     fs::create_directories(dir);
     return dir + "/history.db";
 }

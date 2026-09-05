@@ -14,7 +14,12 @@
 #include <fcntl.h>
 #include <sys/file.h>
 #include <sys/stat.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <filesystem>
+#include <cctype>
+#include <vector>
+#include <string>
 
 #include "config.h"
 #include "storage.h"
@@ -70,6 +75,186 @@ static void setupRootDisplayEnvironment() {
     }
 }
 
+static bool sendIpcCommand(const std::string& command) {
+    const std::vector<std::string> socket_paths = {
+        "/tmp/cliptraylt_ipc_socket",
+        "/tmp/simpleclipboard_ipc_socket"
+    };
+    for (const auto& path : socket_paths) {
+        int sock = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (sock < 0) continue;
+        struct sockaddr_un addr;
+        std::memset(&addr, 0, sizeof(addr));
+        addr.sun_family = AF_UNIX;
+        std::strncpy(addr.sun_path, path.c_str(), sizeof(addr.sun_path) - 1);
+        if (connect(sock, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) == 0) {
+            std::string msg = command + "\n";
+            (void)write(sock, msg.c_str(), msg.length());
+            close(sock);
+            return true;
+        }
+        close(sock);
+    }
+    return false;
+}
+
+static void printVersion() {
+    std::cout << "ClipTray LT version 1.0.0 (Linux x86_64)\n"
+              << "Native lightweight Windows 10-style clipboard flyout manager.\n"
+              << "Project URL: https://github.com/rabbanyhmm/ClipTrayLT\n";
+}
+
+static void printHelp(const char* prog) {
+    std::string p = prog ? prog : "cliptraylt";
+    size_t last_slash = p.find_last_of('/');
+    if (last_slash != std::string::npos) {
+        p = p.substr(last_slash + 1);
+    }
+
+    std::cout << "ClipTray LT - Lightweight Windows 10-Style Clipboard Flyout for Linux\n\n"
+              << "USAGE:\n"
+              << "  " << p << " [OPTIONS]\n"
+              << "  " << p << " config <COMMAND> [ARGS...]\n\n"
+              << "OPTIONS:\n"
+              << "  -h, --help                 Show this help screen and exit\n"
+              << "  -v, --version              Show version information and exit\n"
+              << "  -t, --toggle               Toggle clipboard flyout (via active daemon)\n"
+              << "  -s, --show                 Show clipboard flyout\n"
+              << "  -c, --clear                Clear unpinned clipboard history in daemon\n"
+              << "      --stop                 Stop the running daemon cleanly\n"
+              << "  -d, --daemon               Run clipboard manager daemon (default)\n\n"
+              << "CONFIG COMMANDS:\n"
+              << "  config show                Display current configuration and config path\n"
+              << "  config set <KEY> <VALUE>   Update setting and notify active daemon live\n"
+              << "  config reset               Reset all settings back to default values\n\n"
+              << "CONFIG KEYS & VALUES:\n"
+              << "  max_items <number>         Max history capacity (e.g. 25, 50, 100)\n"
+              << "  save_to_disk <true|false>  Persistent disk DB vs pure RAM (default: false / RAM only)\n"
+              << "  appear_ms <number>         Flyout entrance animation duration in ms (default: 200)\n"
+              << "  hide_ms <number>           Flyout exit animation duration in ms (default: 160)\n"
+              << "  db_path <filepath>         Custom SQLite path (or empty for default)\n\n"
+              << "EXAMPLES:\n"
+              << "  " << p << " config show\n"
+              << "  " << p << " config set max_items 50\n"
+              << "  " << p << " config set save_to_disk true\n"
+              << "  " << p << " config set save_to_disk false\n"
+              << "  " << p << " --toggle\n"
+              << "  " << p << " --clear\n\n";
+}
+
+static int handleConfigCommand(int argc, char* argv[]) {
+    Config::get().load();
+
+    if (argc <= 2 || std::string(argv[2]) == "show" || std::string(argv[2]) == "get" || std::string(argv[2]) == "list") {
+        std::cout << "ClipTray LT Configuration (" << Config::getConfigFilePath() << "):\n"
+                  << "  [Clipboard]\n"
+                  << "    max_items    : " << Config::get().max_items << "\n"
+                  << "    save_to_disk : " << (Config::get().save_to_disk ? "true (persistent SQLite on disk)" : "false (volatile in-memory only, pure RAM mode)") << "\n"
+                  << "  [Animation]\n"
+                  << "    appear_ms    : " << Config::get().anim_appear_ms << " ms\n"
+                  << "    hide_ms      : " << Config::get().anim_hide_ms << " ms\n"
+                  << "  [Storage]\n"
+                  << "    db_path      : " << (Config::get().db_path.empty() ? "(default auto: :memory: or ~/.local/share/cliptraylt/history.db)" : Config::get().db_path) << "\n\n";
+        return 0;
+    }
+
+    std::string sub = argv[2];
+    if (sub == "reset") {
+        Config::get().max_items = 25;
+        Config::get().save_to_disk = false;
+        Config::get().anim_appear_ms = 200;
+        Config::get().anim_hide_ms = 160;
+        Config::get().db_path = "";
+        Config::get().save();
+        std::cout << "[ClipTray LT] Configuration reset to defaults.\n";
+        if (sendIpcCommand("reload-config")) {
+            std::cout << "[ClipTray LT] Active daemon notified and settings reloaded live.\n";
+        }
+        return 0;
+    }
+
+    if (sub == "set") {
+        if (argc < 5) {
+            std::cerr << "Error: 'config set' requires <KEY> and <VALUE>.\n"
+                      << "Usage: cliptraylt config set <max_items|save_to_disk|appear_ms|hide_ms|db_path> <value>\n"
+                      << "Examples:\n"
+                      << "  cliptraylt config set max_items 50\n"
+                      << "  cliptraylt config set save_to_disk false\n";
+            return 1;
+        }
+        std::string key = argv[3];
+        std::string val = argv[4];
+
+        if (key == "max_items") {
+            try {
+                int n = std::stoi(val);
+                if (n < 1) {
+                    std::cerr << "Error: max_items must be at least 1.\n";
+                    return 1;
+                }
+                Config::get().max_items = n;
+            } catch (...) {
+                std::cerr << "Error: Invalid number '" << val << "' for max_items.\n";
+                return 1;
+            }
+        } else if (key == "save_to_disk") {
+            std::string lower_val = val;
+            for (auto& c : lower_val) c = std::tolower(c);
+            if (lower_val == "true" || lower_val == "1" || lower_val == "yes" || lower_val == "on") {
+                Config::get().save_to_disk = true;
+            } else if (lower_val == "false" || lower_val == "0" || lower_val == "no" || lower_val == "off") {
+                Config::get().save_to_disk = false;
+            } else {
+                std::cerr << "Error: save_to_disk must be 'true' or 'false'.\n";
+                return 1;
+            }
+        } else if (key == "appear_ms") {
+            try {
+                int n = std::stoi(val);
+                if (n < 0) {
+                    std::cerr << "Error: appear_ms cannot be negative.\n";
+                    return 1;
+                }
+                Config::get().anim_appear_ms = n;
+            } catch (...) {
+                std::cerr << "Error: Invalid number '" << val << "' for appear_ms.\n";
+                return 1;
+            }
+        } else if (key == "hide_ms") {
+            try {
+                int n = std::stoi(val);
+                if (n < 0) {
+                    std::cerr << "Error: hide_ms cannot be negative.\n";
+                    return 1;
+                }
+                Config::get().anim_hide_ms = n;
+            } catch (...) {
+                std::cerr << "Error: Invalid number '" << val << "' for hide_ms.\n";
+                return 1;
+            }
+        } else if (key == "db_path") {
+            Config::get().db_path = val;
+        } else {
+            std::cerr << "Error: Unknown config key '" << key << "'.\n"
+                      << "Available keys: max_items, save_to_disk, appear_ms, hide_ms, db_path\n";
+            return 1;
+        }
+
+        Config::get().save();
+        std::cout << "[ClipTray LT] Successfully set '" << key << "' = " << val << "\n"
+                  << "[ClipTray LT] Configuration saved to " << Config::getConfigFilePath() << "\n";
+
+        if (sendIpcCommand("reload-config")) {
+            std::cout << "[ClipTray LT] Active daemon notified and settings updated live.\n";
+        }
+        return 0;
+    }
+
+    std::cerr << "Error: Unknown config subcommand '" << sub << "'.\n"
+              << "Available subcommands: show, set, reset\n";
+    return 1;
+}
+
 static QIcon createTrayIcon() {
     QPixmap pixmap(32, 32);
     pixmap.fill(Qt::transparent);
@@ -92,29 +277,81 @@ static QIcon createTrayIcon() {
 }
 
 int main(int argc, char *argv[]) {
+    // 1. Process instant CLI arguments before initializing GUI system
+    if (argc > 1) {
+        std::string arg1 = argv[1];
+        if (arg1 == "-h" || arg1 == "--help" || arg1 == "help") {
+            printHelp(argv[0]);
+            return 0;
+        }
+        if (arg1 == "-v" || arg1 == "--version" || arg1 == "version") {
+            printVersion();
+            return 0;
+        }
+        if (arg1 == "config") {
+            return handleConfigCommand(argc, argv);
+        }
+        if (arg1 == "-t" || arg1 == "--toggle" || arg1 == "toggle") {
+            if (sendIpcCommand("toggle")) {
+                std::cout << "[ClipTray LT] Flyout toggled.\n";
+                return 0;
+            } else {
+                std::cerr << "[ClipTray LT] Daemon is not currently running.\n";
+                return 1;
+            }
+        }
+        if (arg1 == "-s" || arg1 == "--show" || arg1 == "show") {
+            if (sendIpcCommand("show")) {
+                std::cout << "[ClipTray LT] Flyout shown.\n";
+                return 0;
+            } else {
+                std::cerr << "[ClipTray LT] Daemon is not currently running.\n";
+                return 1;
+            }
+        }
+        if (arg1 == "-c" || arg1 == "--clear" || arg1 == "clear") {
+            if (sendIpcCommand("clear")) {
+                std::cout << "[ClipTray LT] Clipboard history cleared.\n";
+                return 0;
+            } else {
+                std::cerr << "[ClipTray LT] Daemon is not currently running.\n";
+                return 1;
+            }
+        }
+        if (arg1 == "--stop" || arg1 == "stop") {
+            if (sendIpcCommand("stop")) {
+                std::cout << "[ClipTray LT] Daemon stopped.\n";
+                return 0;
+            } else {
+                std::cerr << "[ClipTray LT] Daemon is not currently running.\n";
+                return 1;
+            }
+        }
+        if (arg1 != "-d" && arg1 != "--daemon") {
+            std::cerr << "Error: Unknown argument '" << arg1 << "'.\n"
+                      << "Run '" << (argv[0] ? argv[0] : "cliptraylt") << " --help' for usage instructions.\n";
+            return 1;
+        }
+    }
+
     // Prefer xcb for positioning, fallback to wayland
     setenv("QT_QPA_PLATFORM", "xcb", 1);
 
     setupRootDisplayEnvironment();
 
-    const QString socket_name = "simpleclipboard_ipc_socket";
+    const QString socket_name = "cliptraylt_ipc_socket";
 
     // Single-instance process lock
-    int lock_fd = open("/tmp/simpleclipboard_instance.lock", O_CREAT | O_RDWR, 0666);
+    int lock_fd = open("/tmp/cliptraylt_instance.lock", O_CREAT | O_RDWR, 0666);
     if (lock_fd >= 0) {
         fchmod(lock_fd, 0666);
     }
     if (lock_fd < 0 || flock(lock_fd, LOCK_EX | LOCK_NB) != 0) {
-        QLocalSocket socket;
-        socket.connectToServer(socket_name);
-        if (socket.waitForConnected(500)) {
-            socket.write("toggle\n");
-            socket.waitForBytesWritten(500);
-            socket.disconnectFromServer();
-            std::cout << "[SimpleClipboard] Existing daemon instance triggered via IPC. Exiting duplicate process.\n";
+        if (sendIpcCommand("toggle")) {
+            std::cout << "[ClipTray LT] Existing daemon instance triggered via IPC. Exiting duplicate process.\n";
             return 0;
         }
-        std::cout << "[SimpleClipboard] Another instance is already running. Exiting.\n";
+        std::cout << "[ClipTray LT] Another instance is already running. Exiting.\n";
         return 0;
     }
 
@@ -122,7 +359,7 @@ int main(int argc, char *argv[]) {
     app.setQuitOnLastWindowClosed(false);
 
     std::cout << "===================================================\n";
-    std::cout << "    SimpleClipboard Native (Windows 10 Edition)    \n";
+    std::cout << "        ClipTray LT (Windows 10 Edition)           \n";
     std::cout << "===================================================\n";
 
     // Load lightweight configuration from INI or defaults
@@ -180,15 +417,36 @@ int main(int argc, char *argv[]) {
     // Local IPC socket server
     auto* ipc = new QLocalServer(&app);
     QLocalServer::removeServer(socket_name);
+    QLocalServer::removeServer("simpleclipboard_ipc_socket");
     if (ipc->listen(socket_name)) {
         chmod(("/tmp/" + socket_name.toStdString()).c_str(), 0666);
-        QObject::connect(ipc, &QLocalServer::newConnection, [ipc, window]() {
+        // Create backwards compatible symlink
+        unlink("/tmp/simpleclipboard_ipc_socket");
+        (void)symlink(("/tmp/" + socket_name.toStdString()).c_str(), "/tmp/simpleclipboard_ipc_socket");
+
+        QObject::connect(ipc, &QLocalServer::newConnection, [ipc, window, storage, &app]() {
             QLocalSocket* sock = ipc->nextPendingConnection();
             if (!sock) return;
-            QObject::connect(sock, &QLocalSocket::readyRead, [sock, window]() {
+            QObject::connect(sock, &QLocalSocket::readyRead, [sock, window, storage, &app]() {
                 QByteArray msg = sock->readAll();
-                if (msg.contains("toggle") || msg.contains("show")) {
+                if (msg.contains("toggle")) {
+                    window->toggleFlyout();
+                } else if (msg.contains("show")) {
                     window->showFlyout();
+                } else if (msg.contains("clear")) {
+                    storage->clearUnpinned();
+                    window->reloadHistory();
+                    std::cout << "[Daemon] Unpinned history cleared via IPC.\n";
+                } else if (msg.contains("stop")) {
+                    std::cout << "[Daemon] Clean stop requested via IPC. Exiting.\n";
+                    app.quit();
+                } else if (msg.contains("reload-config")) {
+                    Config::get().load();
+                    storage->enforceMaxItems();
+                    window->reloadHistory();
+                    std::cout << "[Daemon] Configuration reloaded live via IPC: max_items="
+                              << Config::get().max_items << ", save_to_disk="
+                              << (Config::get().save_to_disk ? "true" : "false") << "\n";
                 }
             });
         });
@@ -216,7 +474,7 @@ int main(int argc, char *argv[]) {
     tray_icon->show();
 
     std::cout << "[Ready] Monitoring all system copies (Max " << Config::get().max_items << " items, "
-              << (Config::get().save_to_disk ? "persistent on disk" : "in-memory only") << ").\n";
+              << (Config::get().save_to_disk ? "persistent on disk" : "in-memory only, pure RAM") << ").\n";
     std::cout << "[Ready] Press SUPER + V to toggle flyout.\n";
     std::cout << "[Ready] Click anywhere outside to dismiss.\n";
 

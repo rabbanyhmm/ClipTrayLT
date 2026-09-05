@@ -9,10 +9,15 @@ int main() {
     struct sockaddr_un addr;
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, "/tmp/simpleclipboard_ipc_socket", sizeof(addr.sun_path) - 1);
-    if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) == 0) {
-        (void)write(sock, "show\n", 5);
+    strncpy(addr.sun_path, "/tmp/cliptraylt_ipc_socket", sizeof(addr.sun_path) - 1);
+    if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) != 0) {
+        strncpy(addr.sun_path, "/tmp/simpleclipboard_ipc_socket", sizeof(addr.sun_path) - 1);
+        if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) != 0) {
+            close(sock);
+            return 0;
+        }
     }
+    (void)write(sock, "show\n", 5);
     close(sock);
     return 0;
 }

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(simpleclipboard_native LANGUAGES CXX C)
+project(cliptraylt_native LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -39,9 +39,10 @@ set(SOURCES
     src/main.cpp
 )
 
-add_executable(simpleclipboard-native ${SOURCES})
+# Main Executable: cliptraylt
+add_executable(cliptraylt ${SOURCES})
 
-target_link_libraries(simpleclipboard-native
+target_link_libraries(cliptraylt
     PRIVATE
     Qt6::Core
     Qt6::Gui
@@ -55,9 +56,21 @@ target_link_libraries(simpleclipboard-native
     xcb
 )
 
+# Backwards compatible alias: simpleclipboard-native
+add_custom_target(simpleclipboard-native ALL
+    COMMAND ${CMAKE_COMMAND} -E create_symlink $<TARGET_FILE_NAME:cliptraylt> simpleclipboard-native
+    DEPENDS cliptraylt
+)
+
 # Unit Tests
 add_executable(test_storage tests/test_storage.cpp src/core/storage.cpp src/core/config.cpp)
 target_link_libraries(test_storage PRIVATE PkgConfig::SQLITE3 Qt6::Core)
 
-# Instant IPC Trigger CLI
-add_executable(simpleclipboard-trigger src/trigger.c)
+# Instant IPC Trigger CLI: cliptraylt-trigger
+add_executable(cliptraylt-trigger src/trigger.c)
+
+# Backwards compatible alias: simpleclipboard-trigger
+add_custom_target(simpleclipboard-trigger ALL
+    COMMAND ${CMAKE_COMMAND} -E create_symlink $<TARGET_FILE_NAME:cliptraylt-trigger> simpleclipboard-trigger
+    DEPENDS cliptraylt-trigger
+)

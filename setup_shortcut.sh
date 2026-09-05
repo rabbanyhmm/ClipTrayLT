@@ -3,16 +3,18 @@
 set -e
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TRIGGER="$DIR/build/simpleclipboard-trigger"
+TRIGGER="$DIR/build/cliptraylt-trigger"
 
 if [ ! -f "$TRIGGER" ]; then
     echo "Building trigger CLI..."
     cmake -B "$DIR/build" -S "$DIR"
-    cmake --build "$DIR/build" --target simpleclipboard-trigger
+    cmake --build "$DIR/build" --target cliptraylt-trigger
 fi
 
-if [ -f "/usr/local/bin/simpleclipboard-trigger" ]; then
-    COMMAND="/usr/local/bin/simpleclipboard-trigger"
+if [ -f "/usr/local/bin/cliptraylt-trigger" ]; then
+    COMMAND="/usr/local/bin/cliptraylt-trigger"
+elif [ -f "/usr/local/bin/cliptraylt" ]; then
+    COMMAND="/usr/local/bin/cliptraylt --toggle"
 else
     COMMAND="$TRIGGER"
 fi

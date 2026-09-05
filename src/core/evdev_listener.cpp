@@ -60,7 +60,8 @@ void EvdevListener::discoverDevices() {
         std::string sname = name ? name : "";
 
         // Skip virtual clipboard keyboard
-        if (sname.find("SimpleClipboard") != std::string::npos ||
+        if (sname.find("ClipTrayLT") != std::string::npos ||
+            sname.find("SimpleClipboard") != std::string::npos ||
             sname.find("virtual-clipboard") != std::string::npos) {
             libevdev_free(dev);
             close(fd);

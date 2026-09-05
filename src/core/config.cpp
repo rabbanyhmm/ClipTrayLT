@@ -21,10 +21,14 @@ static std::string getConfigDir() {
         const char* home = std::getenv("HOME");
         home_dir = home ? home : "/tmp";
     }
-    std::string dir = home_dir + "/.config/simpleclipboard";
+    std::string dir = home_dir + "/.config/cliptraylt";
     std::error_code ec;
     fs::create_directories(dir, ec);
     return dir;
+}
+
+std::string Config::getConfigFilePath() {
+    return getConfigDir() + "/config.ini";
 }
 
 Config& Config::get() {
@@ -33,7 +37,7 @@ Config& Config::get() {
 }
 
 void Config::load() {
-    std::string config_path = getConfigDir() + "/config.ini";
+    std::string config_path = getConfigFilePath();
     if (!fs::exists(config_path)) {
         save();
         return;
@@ -60,7 +64,7 @@ void Config::load() {
 }
 
 void Config::save() {
-    std::string config_path = getConfigDir() + "/config.ini";
+    std::string config_path = getConfigFilePath();
     QSettings settings(QString::fromStdString(config_path), QSettings::IniFormat);
 
     settings.setValue("Clipboard/max_items", max_items);

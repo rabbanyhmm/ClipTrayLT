@@ -7,23 +7,26 @@ struct Config {
     int max_items = 25;
 
     // Save history to disk:
-    // true  -> High-performance persistent SQLite database on disk (WAL mode, memory mapped)
-    // false -> Volatile in-memory only (:memory:) for maximum privacy and speed (wiped on exit)
-    bool save_to_disk = true;
+    // false (default) -> Volatile in-memory only (:memory:) for maximum privacy and zero disk footprint
+    // true            -> High-performance persistent SQLite database on disk (WAL mode, memory mapped)
+    bool save_to_disk = false;
 
     // Flyout appearance and dismissal animation durations (in milliseconds)
     int anim_appear_ms = 200;
     int anim_hide_ms = 160;
 
-    // Custom database path (leave empty for default ~/.local/share/simpleclipboard/history.db)
+    // Custom database path (leave empty for default ~/.local/share/cliptraylt/history.db)
     std::string db_path = "";
 
     // Global configuration singleton
     static Config& get();
 
-    // Load configuration from ~/.config/simpleclipboard/config.ini or generate defaults
+    // Load configuration from ~/.config/cliptraylt/config.ini or generate defaults
     void load();
 
-    // Save configuration to ~/.config/simpleclipboard/config.ini
+    // Save configuration to ~/.config/cliptraylt/config.ini
     void save();
+
+    // Path to config file
+    static std::string getConfigFilePath();
 };

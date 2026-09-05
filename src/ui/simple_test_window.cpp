@@ -37,7 +37,7 @@ SimpleTestWindow::SimpleTestWindow(QWidget* parent) : QWidget(parent) {
     layout->setContentsMargins(16, 16, 16, 16);
     layout->setSpacing(8);
 
-    auto* title = new QLabel("📋 SimpleClipboard (Corner Anchor)", container_);
+    auto* title = new QLabel("📋 ClipTray LT (Corner Anchor)", container_);
     title->setStyleSheet("font-size: 14px; font-weight: bold; color: #ffffff;");
     layout->addWidget(title);
 

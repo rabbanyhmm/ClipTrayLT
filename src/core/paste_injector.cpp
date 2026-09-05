@@ -42,7 +42,7 @@ bool PasteInjector::init() {
     usetup.id.bustype = BUS_USB;
     usetup.id.vendor = 0x1234;
     usetup.id.product = 0x5678;
-    std::strncpy(usetup.name, "SimpleClipboard Virtual Keyboard", UINPUT_MAX_NAME_SIZE - 1);
+    std::strncpy(usetup.name, "ClipTrayLT Virtual Keyboard", UINPUT_MAX_NAME_SIZE - 1);
 
     if (ioctl(uinput_fd_, UI_DEV_SETUP, &usetup) < 0) {
         std::cerr << "[PasteInjector] UI_DEV_SETUP failed\n";
