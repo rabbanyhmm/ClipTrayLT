@@ -95,6 +95,16 @@ static void setX11SkipTaskbar(unsigned long win) {
     Atom atoms[3] = { skip_taskbar, skip_pager, stay_top };
     XChangeProperty(display, win, net_state, XA_ATOM, 32, PropModeReplace,
                     reinterpret_cast<unsigned char*>(atoms), 3);
+
+    // Explicitly set window type to POPUP_MENU / UTILITY so Mutter and extensions never treat it as a dialog
+    // and never play window closing / CRT collapse animations
+    Atom net_type = XInternAtom(display, "_NET_WM_WINDOW_TYPE", False);
+    Atom type_popup = XInternAtom(display, "_NET_WM_WINDOW_TYPE_POPUP_MENU", False);
+    Atom type_utility = XInternAtom(display, "_NET_WM_WINDOW_TYPE_UTILITY", False);
+    Atom types[2] = { type_popup, type_utility };
+    XChangeProperty(display, win, net_type, XA_ATOM, 32, PropModeReplace,
+                    reinterpret_cast<unsigned char*>(types), 2);
+
     XFlush(display);
     XCloseDisplay(display);
 }
@@ -121,7 +131,7 @@ FlyoutWindow::FlyoutWindow(std::shared_ptr<StorageManager> storage,
       clip_daemon_(clip_daemon),
       last_show_time_(std::chrono::steady_clock::now() - std::chrono::seconds(10)) {
 
-    setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Dialog);
+    setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
     setAttribute(Qt::WA_TranslucentBackground, true);
     setFocusPolicy(Qt::StrongFocus);
     setFixedSize(360, 490);
@@ -356,34 +366,9 @@ void FlyoutWindow::hideFlyout() {
         hide_anim_ = nullptr;
     }
 
-    qreal start_opacity = windowOpacity();
-    if (start_opacity <= 0.05) {
-        hide();
-        setWindowOpacity(1.0);
-        return;
-    }
-
-    int hide_ms = Config::get().anim_hide_ms;
-    if (hide_ms <= 0) {
-        hide();
-        setWindowOpacity(1.0);
-        return;
-    }
-
-    // Keep it natural, clean and smooth in place (no position shifting / height clipping)
-    hide_anim_ = new QPropertyAnimation(this, "windowOpacity");
-    hide_anim_->setDuration(hide_ms);
-    hide_anim_->setStartValue(start_opacity);
-    hide_anim_->setEndValue(0.0);
-    hide_anim_->setEasingCurve(QEasingCurve::OutQuad);
-
-    connect(hide_anim_, &QPropertyAnimation::finished, this, [this]() {
-        hide();
-        setWindowOpacity(1.0);
-        std::cout << "[Flyout] Window smoothly hidden.\n" << std::flush;
-    });
-
-    hide_anim_->start(QAbstractAnimation::DeleteWhenStopped);
+    hide();
+    setWindowOpacity(1.0);
+    std::cout << "[Flyout] Window dismissed.\n" << std::flush;
 }
 
 QPoint FlyoutWindow::calculateBottomRightPosition() {
@@ -407,7 +392,7 @@ void FlyoutWindow::handleGlobalClick() {
 
     auto now = std::chrono::steady_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_show_time_).count();
-    if (elapsed < 200) {
+    if (elapsed < 100) {
         return;
     }
 
@@ -427,14 +412,9 @@ void FlyoutWindow::changeEvent(QEvent* event) {
         if (!isActiveWindow() && isVisible()) {
             auto now = std::chrono::steady_clock::now();
             auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_show_time_).count();
-            if (elapsed > 350) {
-                // Check after 50ms to ensure it's not a transient child focus transition
-                QTimer::singleShot(50, this, [this]() {
-                    if (!isActiveWindow() && isVisible()) {
-                        std::cout << "[Flyout] Window lost active focus to another window. Dismissing.\n" << std::flush;
-                        hideFlyout();
-                    }
-                });
+            if (elapsed > 200) {
+                std::cout << "[Flyout] Window lost active focus to another window. Dismissing.\n" << std::flush;
+                hideFlyout();
             }
         }
     }
