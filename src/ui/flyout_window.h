@@ -56,6 +56,7 @@ private:
     QWidget* list_container_ = nullptr;
     QVBoxLayout* list_layout_ = nullptr;
     QWidget* empty_state_ = nullptr;
+    QLabel* empty_icon_ = nullptr;
     QLabel* empty_title_ = nullptr;
     QLabel* empty_subtitle_ = nullptr;
     QPushButton* clear_all_btn_ = nullptr;

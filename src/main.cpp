@@ -1,5 +1,6 @@
 #include <QApplication>
 #include <QSystemTrayIcon>
+#include <QIcon>
 #include <QMenu>
 #include <QAction>
 #include <QPainter>
@@ -290,6 +291,10 @@ static int handleConfigCommand(int argc, char* argv[]) {
 }
 
 static QIcon createTrayIcon() {
+    QIcon icon(":/icons/app_icon.png");
+    if (!icon.isNull()) {
+        return icon;
+    }
     QPixmap pixmap(32, 32);
     pixmap.fill(Qt::transparent);
     QPainter painter(&pixmap);
@@ -389,6 +394,7 @@ int main(int argc, char *argv[]) {
 
     QApplication app(argc, argv);
     app.setQuitOnLastWindowClosed(false);
+    app.setWindowIcon(createTrayIcon());
 
     std::cout << "===================================================\n";
     std::cout << "                 ClipTray LT                       \n";

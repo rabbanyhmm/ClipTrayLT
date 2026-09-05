@@ -31,6 +31,13 @@ sudo install -m 755 "$DIR/build/cliptraylt-trigger" /usr/local/bin/cliptraylt-tr
 sudo ln -sf /usr/local/bin/cliptraylt /usr/local/bin/simpleclipboard-native
 sudo ln -sf /usr/local/bin/cliptraylt-trigger /usr/local/bin/simpleclipboard-trigger
 
+# 4b. Install application icon
+if [[ -f "$DIR/assets/icon.png" ]]; then
+    sudo mkdir -p /usr/share/icons/hicolor/256x256/apps /usr/share/pixmaps 2>/dev/null || true
+    sudo install -m 644 "$DIR/assets/icon.png" /usr/share/icons/hicolor/256x256/apps/cliptraylt.png 2>/dev/null || true
+    sudo install -m 644 "$DIR/assets/icon.png" /usr/share/pixmaps/cliptraylt.png 2>/dev/null || true
+fi
+
 # 5. Persistent device permissions for keyboard paste injection and hotkeys
 echo "==> Setting up hardware access permissions (udev)..."
 printf 'KERNEL=="uinput", MODE="0666"\nSUBSYSTEM=="input", KERNEL=="event*", MODE="0666"\n' | sudo tee /etc/udev/rules.d/99-cliptraylt.rules >/dev/null
@@ -58,6 +65,7 @@ Type=Application
 Name=ClipTray LT
 Comment=Lightweight Clipboard Manager
 Exec=/usr/local/bin/cliptraylt
+Icon=cliptraylt
 Terminal=false
 Categories=Utility;
 StartupNotify=false

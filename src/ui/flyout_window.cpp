@@ -5,6 +5,8 @@
 #include <QGuiApplication>
 #include <QKeyEvent>
 #include <QGraphicsDropShadowEffect>
+#include <QIcon>
+#include <QPixmap>
 #include <QMimeData>
 #include <QImage>
 #include <QScrollBar>
@@ -123,6 +125,7 @@ FlyoutWindow::FlyoutWindow(std::shared_ptr<StorageManager> storage,
     setFocusPolicy(Qt::StrongFocus);
     setFixedSize(360, 490);
     setStyleSheet(Style::WIN10_FLYOUT_STYLE);
+    setWindowIcon(QIcon(":/icons/app_icon.png"));
 
     auto* outer_layout = new QVBoxLayout(this);
     outer_layout->setContentsMargins(10, 10, 10, 10);
@@ -192,10 +195,16 @@ FlyoutWindow::FlyoutWindow(std::shared_ptr<StorageManager> storage,
     empty_layout->setAlignment(Qt::AlignCenter);
     empty_layout->setSpacing(6);
 
-    auto* empty_icon = new QLabel("📋", empty_state_);
-    empty_icon->setStyleSheet("font-size: 38px;");
-    empty_icon->setAlignment(Qt::AlignCenter);
-    empty_layout->addWidget(empty_icon);
+    empty_icon_ = new QLabel(empty_state_);
+    QPixmap icon_pixmap(":/icons/app_icon.png");
+    if (!icon_pixmap.isNull()) {
+        empty_icon_->setPixmap(icon_pixmap.scaled(68, 68, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    } else {
+        empty_icon_->setText("📋");
+        empty_icon_->setStyleSheet("font-size: 38px;");
+    }
+    empty_icon_->setAlignment(Qt::AlignCenter);
+    empty_layout->addWidget(empty_icon_);
 
     empty_title_ = new QLabel("Your clipboard is empty", empty_state_);
     empty_title_->setObjectName("EmptyTitle");
@@ -414,9 +423,23 @@ void FlyoutWindow::reloadHistory(const QString& query) {
         scroll_area_->hide();
         clear_all_btn_->setEnabled(false);
         if (query.isEmpty()) {
+            if (empty_icon_) {
+                QPixmap icon_pixmap(":/icons/app_icon.png");
+                if (!icon_pixmap.isNull()) {
+                    empty_icon_->setStyleSheet("");
+                    empty_icon_->setPixmap(icon_pixmap.scaled(68, 68, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                } else {
+                    empty_icon_->setText("📋");
+                    empty_icon_->setStyleSheet("font-size: 38px;");
+                }
+            }
             if (empty_title_) empty_title_->setText("Your clipboard is empty");
             if (empty_subtitle_) empty_subtitle_->setText("When you copy or cut text and images, they'll appear here.");
         } else {
+            if (empty_icon_) {
+                empty_icon_->setText("🔍");
+                empty_icon_->setStyleSheet("font-size: 36px;");
+            }
             if (empty_title_) empty_title_->setText("No results found");
             if (empty_subtitle_) empty_subtitle_->setText(QString("No clipboard items match \"%1\"").arg(query));
         }

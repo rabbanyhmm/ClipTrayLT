@@ -37,6 +37,7 @@ set(SOURCES
     src/ui/flyout_window.cpp
     src/ui/simple_test_window.cpp
     src/main.cpp
+    resources.qrc
 )
 
 # Main Executable: cliptraylt

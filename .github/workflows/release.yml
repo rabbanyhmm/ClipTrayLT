@@ -66,6 +66,7 @@ jobs:
           cp LICENSE "dist/${PKG_NAME}/"
           mkdir -p "dist/${PKG_NAME}/assets"
           cp assets/banner.png "dist/${PKG_NAME}/assets/" 2>/dev/null || true
+          cp assets/icon.png "dist/${PKG_NAME}/assets/" 2>/dev/null || true
 
           cd dist
           tar -czvf "${PKG_NAME}.tar.gz" "${PKG_NAME}"
