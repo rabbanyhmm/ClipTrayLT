@@ -125,5 +125,44 @@ int main() {
     std::filesystem::remove("/tmp/test_sc_dedup.db");
     std::cout << "No-duplicate rule for text & images verified successfully!\n";
 
+    // 8. Test Large Content (5 MB payload)
+    std::string large_db = "/tmp/test_sc_large.db";
+    StorageManager large_storage(large_db);
+    std::string large_payload(5 * 1024 * 1024, 'X');
+    large_payload[0] = 'S';
+    large_payload[large_payload.size() - 1] = 'E';
+    int64_t large_id = large_storage.addItem("text", large_payload);
+    assert(large_id > 0);
+
+    auto retrieved_large = large_storage.getItemById(large_id);
+    assert(retrieved_large.has_value());
+    assert(retrieved_large->text_content.size() == 5 * 1024 * 1024);
+    assert(retrieved_large->text_content.front() == 'S');
+    assert(retrieved_large->text_content.back() == 'E');
+    std::filesystem::remove(large_db);
+    std::cout << "Large 5MB payload storage and retrieval verified successfully!\n";
+
+    // 9. Test Raw Bytes with Embedded Nulls (\0) and Binary Values
+    std::string raw_db = "/tmp/test_sc_raw.db";
+    StorageManager raw_storage(raw_db);
+    std::string raw_data = "PREFIX\0\0BINARY\x01\x02\xFF\xFE\0SUFFIX";
+    std::string raw_string(raw_data.data(), 27); // explicitly 27 bytes containing 3 null bytes
+    assert(raw_string.size() == 27);
+
+    int64_t raw_id = raw_storage.addItem("raw", raw_string);
+    assert(raw_id > 0);
+
+    auto retrieved_raw = raw_storage.getItemById(raw_id);
+    assert(retrieved_raw.has_value());
+    assert(retrieved_raw->text_content.size() == 27);
+    assert(retrieved_raw->text_content == raw_string);
+
+    auto items_raw = raw_storage.getItems(10);
+    assert(!items_raw.empty());
+    assert(items_raw[0].text_content.size() == 27);
+    assert(items_raw[0].text_content == raw_string);
+    std::filesystem::remove(raw_db);
+    std::cout << "Raw binary payload with embedded nulls verified successfully!\n";
+
     return 0;
 }

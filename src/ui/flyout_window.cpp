@@ -533,9 +533,16 @@ void FlyoutWindow::onCardClicked(int64_t id) {
         clipboard->setPixmap(pix);
     } else {
         auto* mime = new QMimeData();
-        mime->setText(QString::fromStdString(item.text_content));
+        QByteArray data_bytes(item.text_content.data(), static_cast<int>(item.text_content.size()));
+        mime->setData("text/plain", data_bytes);
+        mime->setText(QString::fromUtf8(item.text_content.data(), static_cast<int>(item.text_content.size())));
         if (!item.html_content.empty()) {
-            mime->setHtml(QString::fromStdString(item.html_content));
+            QByteArray html_bytes(item.html_content.data(), static_cast<int>(item.html_content.size()));
+            mime->setData("text/html", html_bytes);
+            mime->setHtml(QString::fromUtf8(item.html_content.data(), static_cast<int>(item.html_content.size())));
+        }
+        if (item.content_type == "raw") {
+            mime->setData("application/octet-stream", data_bytes);
         }
         clipboard->setMimeData(mime);
     }

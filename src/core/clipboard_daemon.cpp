@@ -122,22 +122,39 @@ void ClipboardDaemon::onClipboardChanged() {
     }
 
     if (mime->hasText()) {
-        QString text = mime->text();
-        if (text.trimmed().isEmpty()) return;
+        QByteArray raw_bytes = mime->data("text/plain");
+        std::string raw_str;
+        if (!raw_bytes.isEmpty()) {
+            raw_str.assign(raw_bytes.constData(), raw_bytes.size());
+        } else {
+            QString text = mime->text();
+            QByteArray utf8 = text.toUtf8();
+            raw_str.assign(utf8.constData(), utf8.size());
+        }
+        if (raw_str.empty()) return;
 
         auto now = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_text_copy_time_).count();
-        if (text == last_saved_text_ && elapsed < 400) {
+        if (raw_str == last_saved_raw_ && elapsed < 400) {
             // Rapid duplicate event from same keystroke ignored
             return;
         }
-        last_saved_text_ = text;
+        last_saved_raw_ = raw_str;
         last_text_copy_time_ = now;
 
-        QString html = mime->hasHtml() ? mime->html() : "";
-        int64_t id = storage_->addItem("text", text.toStdString(), html.toStdString());
-        std::cout << "[ClipboardDaemon] Captured copied text (ID: " << id
-                  << ", Preview: " << text.left(40).toStdString() << "...)\n" << std::flush;
+        std::string html_str;
+        if (mime->hasHtml()) {
+            QByteArray html_bytes = mime->data("text/html");
+            if (!html_bytes.isEmpty()) {
+                html_str.assign(html_bytes.constData(), html_bytes.size());
+            } else {
+                html_str = mime->html().toStdString();
+            }
+        }
+
+        int64_t id = storage_->addItem("text", raw_str, html_str);
+        std::cout << "[ClipboardDaemon] Captured copied content (ID: " << id
+                  << ", Size: " << raw_str.size() << " bytes)\n" << std::flush;
         emit historyUpdated();
         return;
     }
@@ -162,6 +179,26 @@ void ClipboardDaemon::onClipboardChanged() {
             int64_t id = storage_->addItem("image", "", "", blob);
             std::cout << "[ClipboardDaemon] Captured copied image (ID: " << id << ")\n" << std::flush;
             emit historyUpdated();
+            return;
+        }
+    }
+
+    // Capture raw binary data streams (e.g. octet-stream, custom binary formats)
+    for (const QString& fmt : mime->formats()) {
+        if (fmt.contains("octet-stream") || fmt.contains("binary") || fmt.contains("raw") || fmt.contains("data")) {
+            QByteArray data = mime->data(fmt);
+            if (!data.isEmpty()) {
+                std::string raw_str(data.constData(), data.size());
+                if (raw_str == last_saved_raw_) return;
+                last_saved_raw_ = raw_str;
+
+                int64_t id = storage_->addItem("raw", raw_str, "");
+                std::cout << "[ClipboardDaemon] Captured raw binary stream (ID: " << id
+                          << ", Format: " << fmt.toStdString()
+                          << ", Size: " << data.size() << " bytes)\n" << std::flush;
+                emit historyUpdated();
+                return;
+            }
         }
     }
 }

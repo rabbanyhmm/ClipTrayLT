@@ -124,12 +124,13 @@ int64_t StorageManager::addItem(const std::string& content_type,
     int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();
 
-    // Deduplication check: if text content already exists, update timestamp so it jumps to top
-    if (content_type == "text" && !text_content.empty()) {
-        const char* check_sql = "SELECT id FROM clipboard_history WHERE content_type = 'text' AND text_content = ? LIMIT 1;";
+    // Deduplication check: if text or raw content already exists, update timestamp so it jumps to top
+    if ((content_type == "text" || content_type == "raw") && !text_content.empty()) {
+        const char* check_sql = "SELECT id FROM clipboard_history WHERE content_type = ? AND text_content = ? LIMIT 1;";
         sqlite3_stmt* stmt = nullptr;
         if (sqlite3_prepare_v2(db_, check_sql, -1, &stmt, nullptr) == SQLITE_OK) {
-            sqlite3_bind_text(stmt, 1, text_content.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(stmt, 1, content_type.data(), static_cast<int>(content_type.size()), SQLITE_TRANSIENT);
+            sqlite3_bind_text(stmt, 2, text_content.data(), static_cast<int>(text_content.size()), SQLITE_TRANSIENT);
             if (sqlite3_step(stmt) == SQLITE_ROW) {
                 int64_t existing_id = sqlite3_column_int64(stmt, 0);
                 sqlite3_finalize(stmt);
@@ -141,7 +142,7 @@ int64_t StorageManager::addItem(const std::string& content_type,
                 if (sqlite3_prepare_v2(db_, update_sql, -1, &ustmt, nullptr) == SQLITE_OK) {
                     sqlite3_bind_int64(ustmt, 1, now);
                     if (!html_content.empty()) {
-                        sqlite3_bind_text(ustmt, 2, html_content.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_text(ustmt, 2, html_content.data(), static_cast<int>(html_content.size()), SQLITE_TRANSIENT);
                         sqlite3_bind_int64(ustmt, 3, existing_id);
                     } else {
                         sqlite3_bind_int64(ustmt, 2, existing_id);
@@ -188,9 +189,13 @@ int64_t StorageManager::addItem(const std::string& content_type,
         return -1;
     }
 
-    sqlite3_bind_text(stmt, 1, content_type.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 2, text_content.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 3, html_content.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 1, content_type.data(), static_cast<int>(content_type.size()), SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, text_content.data(), static_cast<int>(text_content.size()), SQLITE_TRANSIENT);
+    if (!html_content.empty()) {
+        sqlite3_bind_text(stmt, 3, html_content.data(), static_cast<int>(html_content.size()), SQLITE_TRANSIENT);
+    } else {
+        sqlite3_bind_null(stmt, 3);
+    }
     if (!image_data.empty()) {
         sqlite3_bind_blob(stmt, 4, image_data.data(), static_cast<int>(image_data.size()), SQLITE_TRANSIENT);
     } else {
@@ -241,13 +246,16 @@ std::vector<ClipboardRecord> StorageManager::getItems(int limit, const std::stri
         ClipboardRecord rec;
         rec.id = sqlite3_column_int64(stmt, 0);
         const unsigned char* ctype = sqlite3_column_text(stmt, 1);
-        rec.content_type = ctype ? reinterpret_cast<const char*>(ctype) : "";
+        int ctype_bytes = sqlite3_column_bytes(stmt, 1);
+        rec.content_type = (ctype && ctype_bytes > 0) ? std::string(reinterpret_cast<const char*>(ctype), ctype_bytes) : "";
 
         const unsigned char* txt = sqlite3_column_text(stmt, 2);
-        rec.text_content = txt ? reinterpret_cast<const char*>(txt) : "";
+        int txt_bytes = sqlite3_column_bytes(stmt, 2);
+        rec.text_content = (txt && txt_bytes > 0) ? std::string(reinterpret_cast<const char*>(txt), txt_bytes) : "";
 
         const unsigned char* html = sqlite3_column_text(stmt, 3);
-        rec.html_content = html ? reinterpret_cast<const char*>(html) : "";
+        int html_bytes = sqlite3_column_bytes(stmt, 3);
+        rec.html_content = (html && html_bytes > 0) ? std::string(reinterpret_cast<const char*>(html), html_bytes) : "";
 
         const void* blob = sqlite3_column_blob(stmt, 4);
         int bytes = sqlite3_column_bytes(stmt, 4);
@@ -278,11 +286,16 @@ std::optional<ClipboardRecord> StorageManager::getItemById(int64_t id) {
         ClipboardRecord rec;
         rec.id = sqlite3_column_int64(stmt, 0);
         const unsigned char* ctype = sqlite3_column_text(stmt, 1);
-        rec.content_type = ctype ? reinterpret_cast<const char*>(ctype) : "";
+        int ctype_bytes = sqlite3_column_bytes(stmt, 1);
+        rec.content_type = (ctype && ctype_bytes > 0) ? std::string(reinterpret_cast<const char*>(ctype), ctype_bytes) : "";
+
         const unsigned char* txt = sqlite3_column_text(stmt, 2);
-        rec.text_content = txt ? reinterpret_cast<const char*>(txt) : "";
+        int txt_bytes = sqlite3_column_bytes(stmt, 2);
+        rec.text_content = (txt && txt_bytes > 0) ? std::string(reinterpret_cast<const char*>(txt), txt_bytes) : "";
+
         const unsigned char* html = sqlite3_column_text(stmt, 3);
-        rec.html_content = html ? reinterpret_cast<const char*>(html) : "";
+        int html_bytes = sqlite3_column_bytes(stmt, 3);
+        rec.html_content = (html && html_bytes > 0) ? std::string(reinterpret_cast<const char*>(html), html_bytes) : "";
 
         const void* blob = sqlite3_column_blob(stmt, 4);
         int bytes = sqlite3_column_bytes(stmt, 4);

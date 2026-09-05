@@ -61,9 +61,13 @@ ItemCard::ItemCard(const ClipboardRecord& record, QWidget* parent)
         }
     } else {
         content_label_->setWordWrap(true);
-        QString text = QString::fromStdString(record_.text_content).trimmed();
-        if (text.length() > 240) {
+        size_t preview_len = std::min<size_t>(record_.text_content.size(), 400);
+        QString text = QString::fromUtf8(record_.text_content.data(), static_cast<int>(preview_len)).trimmed();
+        if (record_.text_content.size() > preview_len || text.length() > 240) {
             text = text.left(240) + "...";
+        }
+        if (text.isEmpty() && !record_.text_content.empty()) {
+            text = QString("[%1 bytes raw binary data]").arg(record_.text_content.size());
         }
         content_label_->setText(text);
         content_label_->setMaximumHeight(70);

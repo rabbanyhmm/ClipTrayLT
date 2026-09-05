@@ -24,7 +24,7 @@ private slots:
 private:
     std::shared_ptr<StorageManager> storage_;
     std::atomic<bool> self_copying_{false};
-    QString last_saved_text_;
+    std::string last_saved_raw_;
     std::chrono::steady_clock::time_point last_text_copy_time_{};
     QByteArray last_saved_image_bytes_;
     std::chrono::steady_clock::time_point last_image_copy_time_{};
