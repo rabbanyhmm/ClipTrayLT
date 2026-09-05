@@ -10,6 +10,9 @@
 #include <vector>
 #include <atomic>
 #include <chrono>
+#include <QPointer>
+#include <QParallelAnimationGroup>
+#include <QPropertyAnimation>
 #include "storage.h"
 #include "paste_injector.h"
 #include "clipboard_daemon.h"
@@ -56,7 +59,9 @@ private:
     std::atomic<bool> history_dirty_{true};
     std::atomic<bool> was_clicked_inside_{false};
     std::chrono::steady_clock::time_point last_show_time_;
+    QPointer<QParallelAnimationGroup> anim_group_ = nullptr;
 
     void updateSelection(int new_index);
     void positionAtBottomRight();
+    QPoint calculateBottomRightPosition();
 };

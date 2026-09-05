@@ -144,38 +144,108 @@ void FlyoutWindow::toggleFlyout() {
 
 void FlyoutWindow::showFlyout() {
     last_show_time_ = std::chrono::steady_clock::now();
+    was_clicked_inside_ = false;
 
     if (history_dirty_.load()) {
         reloadHistory();
         history_dirty_ = false;
     }
 
-    positionAtBottomRight();
+    QPoint target_pos = calculateBottomRightPosition();
+    QPoint start_pos = target_pos + QPoint(0, 22);
+
+    if (anim_group_) {
+        anim_group_->stop();
+        delete anim_group_;
+    }
+
+    qreal start_opacity = isVisible() ? windowOpacity() : 0.0;
+    QPoint curr_pos = isVisible() ? pos() : start_pos;
+
+    move(curr_pos);
+    setWindowOpacity(start_opacity);
     show();
     raise();
-    // Do NOT call activateWindow() to keep active text box focus completely intact!
-    qApp->processEvents(QEventLoop::ExcludeUserInputEvents);
 
-    std::cout << "[Flyout] Window opened at bottom-right corner (active text box focus preserved).\n" << std::flush;
+    anim_group_ = new QParallelAnimationGroup(this);
+
+    auto* opacity_anim = new QPropertyAnimation(this, "windowOpacity");
+    opacity_anim->setDuration(200);
+    opacity_anim->setStartValue(start_opacity);
+    opacity_anim->setEndValue(1.0);
+    opacity_anim->setEasingCurve(QEasingCurve::OutCubic);
+
+    auto* pos_anim = new QPropertyAnimation(this, "pos");
+    pos_anim->setDuration(200);
+    pos_anim->setStartValue(curr_pos);
+    pos_anim->setEndValue(target_pos);
+    pos_anim->setEasingCurve(QEasingCurve::OutCubic);
+
+    anim_group_->addAnimation(opacity_anim);
+    anim_group_->addAnimation(pos_anim);
+
+    connect(anim_group_, &QParallelAnimationGroup::finished, this, [this, target_pos]() {
+        move(target_pos);
+        setWindowOpacity(1.0);
+    });
+
+    anim_group_->start(QAbstractAnimation::DeleteWhenStopped);
+
+    std::cout << "[Flyout] Window smoothly opening at bottom-right corner.\n" << std::flush;
 }
 
 void FlyoutWindow::hideFlyout() {
     if (!isVisible()) return;
-    hide();
-    qApp->processEvents(QEventLoop::ExcludeUserInputEvents);
-    std::cout << "[Flyout] Window hidden.\n" << std::flush;
+
+    if (anim_group_) {
+        anim_group_->stop();
+        delete anim_group_;
+    }
+
+    qreal start_opacity = windowOpacity();
+    QPoint curr_pos = pos();
+    QPoint end_pos = curr_pos + QPoint(0, 16);
+
+    anim_group_ = new QParallelAnimationGroup(this);
+
+    auto* opacity_anim = new QPropertyAnimation(this, "windowOpacity");
+    opacity_anim->setDuration(160);
+    opacity_anim->setStartValue(start_opacity);
+    opacity_anim->setEndValue(0.0);
+    opacity_anim->setEasingCurve(QEasingCurve::InCubic);
+
+    auto* pos_anim = new QPropertyAnimation(this, "pos");
+    pos_anim->setDuration(160);
+    pos_anim->setStartValue(curr_pos);
+    pos_anim->setEndValue(end_pos);
+    pos_anim->setEasingCurve(QEasingCurve::InCubic);
+
+    anim_group_->addAnimation(opacity_anim);
+    anim_group_->addAnimation(pos_anim);
+
+    connect(anim_group_, &QParallelAnimationGroup::finished, this, [this]() {
+        hide();
+        setWindowOpacity(1.0);
+        std::cout << "[Flyout] Window smoothly hidden.\n" << std::flush;
+    });
+
+    anim_group_->start(QAbstractAnimation::DeleteWhenStopped);
 }
 
-void FlyoutWindow::positionAtBottomRight() {
+QPoint FlyoutWindow::calculateBottomRightPosition() {
     QScreen* screen = QGuiApplication::screenAt(QCursor::pos());
     if (!screen) {
         screen = QGuiApplication::primaryScreen();
     }
-    if (!screen) return;
+    if (!screen) return pos();
     QRect work = screen->availableGeometry();
     int x = work.right() - width() - 16;
     int y = work.bottom() - height() - 16;
-    move(x, y);
+    return QPoint(x, y);
+}
+
+void FlyoutWindow::positionAtBottomRight() {
+    move(calculateBottomRightPosition());
 }
 
 void FlyoutWindow::handleGlobalClick() {
