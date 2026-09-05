@@ -75,7 +75,9 @@ void EvdevListener::discoverDevices() {
 
         bool is_mouse = libevdev_has_event_type(dev, EV_KEY) &&
                         (libevdev_has_event_code(dev, EV_KEY, BTN_LEFT) ||
-                         libevdev_has_event_code(dev, EV_KEY, BTN_RIGHT));
+                         libevdev_has_event_code(dev, EV_KEY, BTN_RIGHT) ||
+                         libevdev_has_event_code(dev, EV_KEY, BTN_MIDDLE) ||
+                         libevdev_has_event_code(dev, EV_KEY, BTN_TOUCH));
 
         if (is_keyboard || is_mouse) {
             std::cout << "[EvdevListener] Monitoring "
@@ -165,7 +167,8 @@ void EvdevListener::runLoop() {
                         emit escapePressed();
                     }
                     // 3. Global Mouse Click tracking (Clicks outside window)
-                    else if ((ev.code == BTN_LEFT || ev.code == BTN_RIGHT) && ev.value == 1) {
+                    else if ((ev.code == BTN_LEFT || ev.code == BTN_RIGHT ||
+                              ev.code == BTN_MIDDLE || ev.code == BTN_TOUCH) && ev.value == 1) {
                         emit globalMousePressed();
                     }
                 }

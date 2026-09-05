@@ -37,6 +37,8 @@ public:
 protected:
     void keyPressEvent(QKeyEvent* event) override;
     bool eventFilter(QObject* watched, QEvent* event) override;
+    void changeEvent(QEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
 
 private slots:
     void onCardClicked(int64_t id);

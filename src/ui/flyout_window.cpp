@@ -4,6 +4,7 @@
 #include <QScreen>
 #include <QGuiApplication>
 #include <QKeyEvent>
+#include <QMouseEvent>
 #include <QGraphicsDropShadowEffect>
 #include <QIcon>
 #include <QPixmap>
@@ -400,13 +401,41 @@ void FlyoutWindow::handleGlobalClick() {
     }
 
     QPoint mouse_pt = QCursor::pos();
-    if (geometry().contains(mouse_pt)) {
+    QRect win_bounds(mapToGlobal(QPoint(0, 0)), size());
+    if (win_bounds.contains(mouse_pt)) {
         // Mouse click was inside the flyout window - do not dismiss!
         return;
     }
 
     std::cout << "[Flyout] Confirmed outside click at (" << mouse_pt.x() << ", " << mouse_pt.y() << "). Dismissing flyout.\n" << std::flush;
     hideFlyout();
+}
+
+void FlyoutWindow::changeEvent(QEvent* event) {
+    if (event->type() == QEvent::ActivationChange) {
+        if (!isActiveWindow() && isVisible()) {
+            auto now = std::chrono::steady_clock::now();
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_show_time_).count();
+            if (elapsed > 350) {
+                // Check after 50ms to ensure it's not a transient child focus transition
+                QTimer::singleShot(50, this, [this]() {
+                    if (!isActiveWindow() && isVisible()) {
+                        std::cout << "[Flyout] Window lost active focus to another window. Dismissing.\n" << std::flush;
+                        hideFlyout();
+                    }
+                });
+            }
+        }
+    }
+    QWidget::changeEvent(event);
+}
+
+void FlyoutWindow::mousePressEvent(QMouseEvent* event) {
+    if (container_ && !container_->geometry().contains(event->pos())) {
+        hideFlyout();
+        return;
+    }
+    QWidget::mousePressEvent(event);
 }
 
 void FlyoutWindow::reloadHistory(const QString& query) {
