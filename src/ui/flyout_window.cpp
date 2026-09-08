@@ -343,10 +343,14 @@ void FlyoutWindow::showFlyout() {
 
     // Save previous active window for focus restoration on paste
     TargetWindowInfo target_info = getActiveWindowInfo(static_cast<unsigned long>(winId()));
-    if (target_info.win != 0) {
-        target_window_ = target_info.win;
-    }
+    target_window_ = target_info.win;
     target_is_terminal_ = target_info.is_terminal || CaretDetector::isTerminalActive();
+
+    // If terminal is active via CaretDetector (Wayland terminal), do not restore any stale X11 window
+    if (target_is_terminal_ && !target_info.is_terminal) {
+        target_window_ = 0;
+    }
+
     std::cout << "[Flyout] showFlyout: target_window=" << target_window_
               << ", is_terminal=" << (target_is_terminal_ ? "YES" : "NO") << "\n" << std::flush;
 
@@ -438,6 +442,7 @@ void FlyoutWindow::hideFlyout() {
 
     hide();
     setWindowOpacity(1.0);
+    target_window_ = 0;
     std::cout << "[Flyout] Window dismissed.\n" << std::flush;
 }
 
@@ -619,7 +624,9 @@ void FlyoutWindow::onCardClicked(int64_t id) {
         }
     } else {
         auto* mime = new QMimeData();
-        QByteArray data_bytes = QByteArray::fromRawData(item.text_content.data(), static_cast<qsizetype>(item.text_content.size()));
+        QByteArray data_bytes(item.text_content.data(), static_cast<qsizetype>(item.text_content.size()));
+        QString text_str = QString::fromUtf8(data_bytes);
+        mime->setText(text_str);
         mime->setData("text/plain", data_bytes);
         mime->setData("text/plain;charset=utf-8", data_bytes);
         mime->setData("UTF8_STRING", data_bytes);
@@ -638,6 +645,7 @@ void FlyoutWindow::onCardClicked(int64_t id) {
 
         if (clipboard->supportsSelection()) {
             auto* mime_sel = new QMimeData();
+            mime_sel->setText(text_str);
             mime_sel->setData("text/plain", data_bytes);
             mime_sel->setData("text/plain;charset=utf-8", data_bytes);
             mime_sel->setData("UTF8_STRING", data_bytes);
@@ -662,7 +670,7 @@ void FlyoutWindow::onCardClicked(int64_t id) {
 
     auto injector = paste_injector_;
     std::thread([injector, is_terminal]() {
-        injector->paste(75, is_terminal);
+        injector->paste(100, is_terminal);
     }).detach();
 }
 

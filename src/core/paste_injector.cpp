@@ -94,12 +94,12 @@ bool PasteInjector::paste(int delay_ms, bool is_terminal) {
         emitKey(EV_KEY, KEY_LEFTSHIFT, 1);
         emitKey(EV_SYN, SYN_REPORT, 0);
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
         emitKey(EV_KEY, KEY_V, 1);
         emitKey(EV_SYN, SYN_REPORT, 0);
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(15));
+        std::this_thread::sleep_for(std::chrono::milliseconds(25));
 
         emitKey(EV_KEY, KEY_V, 0);
         emitKey(EV_SYN, SYN_REPORT, 0);
@@ -114,12 +114,12 @@ bool PasteInjector::paste(int delay_ms, bool is_terminal) {
         emitKey(EV_KEY, KEY_LEFTCTRL, 1);
         emitKey(EV_SYN, SYN_REPORT, 0);
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
         emitKey(EV_KEY, KEY_V, 1);
         emitKey(EV_SYN, SYN_REPORT, 0);
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(15));
+        std::this_thread::sleep_for(std::chrono::milliseconds(25));
 
         emitKey(EV_KEY, KEY_V, 0);
         emitKey(EV_SYN, SYN_REPORT, 0);
