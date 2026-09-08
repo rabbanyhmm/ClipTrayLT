@@ -70,6 +70,7 @@ ItemCard::ItemCard(const ClipboardRecord& record, QWidget* parent)
     content_label_ = new QLabel(this);
     content_label_->setObjectName("ItemText");
     content_label_->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    content_label_->setAttribute(Qt::WA_TransparentForMouseEvents, true);
 
     if (record_.content_type == "image" && !record_.image_data.empty()) {
         QPixmap pixmap;
@@ -168,9 +169,32 @@ void ItemCard::setSelected(bool selected) {
 void ItemCard::mousePressEvent(QMouseEvent* event) {
     emit cardInteracted();
     if (event->button() == Qt::LeftButton) {
-        emit clicked(record_.id);
+        is_pressed_ = true;
+        event->accept();
+        return;
     }
     QWidget::mousePressEvent(event);
+}
+
+void ItemCard::mouseReleaseEvent(QMouseEvent* event) {
+    if (event->button() == Qt::LeftButton && is_pressed_) {
+        is_pressed_ = false;
+        if (rect().contains(event->pos())) {
+            emit clicked(record_.id);
+        }
+        event->accept();
+        return;
+    }
+    QWidget::mouseReleaseEvent(event);
+}
+
+void ItemCard::mouseDoubleClickEvent(QMouseEvent* event) {
+    if (event->button() == Qt::LeftButton) {
+        emit clicked(record_.id);
+        event->accept();
+        return;
+    }
+    QWidget::mouseDoubleClickEvent(event);
 }
 
 void ItemCard::enterEvent(QEnterEvent* event) {

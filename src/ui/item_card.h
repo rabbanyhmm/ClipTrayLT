@@ -24,12 +24,15 @@ signals:
 
 protected:
     void mousePressEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
+    void mouseDoubleClickEvent(QMouseEvent* event) override;
     void enterEvent(QEnterEvent* event) override;
     void leaveEvent(QEvent* event) override;
 
 private:
     ClipboardRecord record_;
     bool is_selected_ = false;
+    bool is_pressed_ = false;
     QLabel* content_label_ = nullptr;
     QPushButton* pin_btn_ = nullptr;
     QPushButton* delete_btn_ = nullptr;

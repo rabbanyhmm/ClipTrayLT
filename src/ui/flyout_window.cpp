@@ -337,6 +337,7 @@ void FlyoutWindow::toggleFlyout() {
 
 void FlyoutWindow::showFlyout() {
     last_show_time_ = std::chrono::steady_clock::now();
+    pasting_in_progress_ = false;
 
     // Save previous active window for focus restoration on paste
     TargetWindowInfo target_info = getActiveWindowInfo(static_cast<unsigned long>(winId()));
@@ -459,11 +460,17 @@ void FlyoutWindow::handleGlobalClick() {
 
     auto now = std::chrono::steady_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_show_time_).count();
-    if (elapsed < 100) {
+    if (elapsed < 150) {
         return;
     }
 
     QPoint mouse_pt = QCursor::pos();
+    // On Wayland, QCursor::pos() can return (0, 0) or dummy coordinates when unmapped.
+    // Never dismiss the flyout if pointer coordinates are unmapped/null.
+    if (mouse_pt.isNull() || (mouse_pt.x() == 0 && mouse_pt.y() < 100)) {
+        return;
+    }
+
     QRect win_bounds(mapToGlobal(QPoint(0, 0)), size());
     if (win_bounds.contains(mouse_pt)) {
         // Mouse click was inside the flyout window - do not dismiss!
@@ -581,6 +588,9 @@ void FlyoutWindow::pasteCardAt(int index) {
 }
 
 void FlyoutWindow::onCardClicked(int64_t id) {
+    if (pasting_in_progress_) return;
+    pasting_in_progress_ = true;
+
     std::cout << "[Flyout] onCardClicked triggered for ID=" << id << "\n" << std::flush;
     bool is_terminal = target_is_terminal_;
     hideFlyout();
@@ -591,7 +601,10 @@ void FlyoutWindow::onCardClicked(int64_t id) {
     }
 
     auto item_opt = storage_->getItemById(id);
-    if (!item_opt.has_value()) return;
+    if (!item_opt.has_value()) {
+        pasting_in_progress_ = false;
+        return;
+    }
 
     const auto& item = item_opt.value();
 
@@ -650,7 +663,7 @@ void FlyoutWindow::onCardClicked(int64_t id) {
 
     auto injector = paste_injector_;
     std::thread([injector, is_terminal]() {
-        injector->paste(60, is_terminal);
+        injector->paste(75, is_terminal);
     }).detach();
 }
 

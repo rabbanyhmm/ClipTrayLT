@@ -31,14 +31,31 @@ static void on_window_activated(AtspiEvent* event, void* user_data) {
     (void)user_data;
     if (!event || !event->source) return;
 
-    AtspiAccessible* app = atspi_accessible_get_application(event->source, nullptr);
-    const char* app_name = app ? atspi_accessible_get_name(app, nullptr) : nullptr;
-    std::string app_str = app_name ? app_name : "";
-    if (app) {
-        g_object_unref(app);
+    // Fast-path: Skip our own process immediately via D-Bus connection PID (0ms round-trip)
+    GError* err = nullptr;
+    guint pid = atspi_accessible_get_process_id(event->source, &err);
+    if (err) {
+        g_error_free(err);
+        err = nullptr;
+    }
+    if (pid == static_cast<guint>(getpid())) {
+        return;
     }
 
-    if (app_str == "cliptraylt" || app_str.find("cliptray") != std::string::npos || app_str == "gnome-shell") {
+    AtspiAccessible* app = atspi_accessible_get_application(event->source, nullptr);
+    if (!app) return;
+
+    guint app_pid = atspi_accessible_get_process_id(app, nullptr);
+    if (app_pid == static_cast<guint>(getpid())) {
+        g_object_unref(app);
+        return;
+    }
+
+    const char* app_name = atspi_accessible_get_name(app, nullptr);
+    std::string app_str = app_name ? app_name : "";
+    g_object_unref(app);
+
+    if (app_str.empty() || app_str == "cliptraylt" || app_str.find("cliptray") != std::string::npos || app_str == "gnome-shell") {
         return;
     }
 
@@ -69,6 +86,9 @@ void CaretDetector::runEventLoop() {
         return;
     }
 
+    // Never allow AT-SPI RPC calls to block for default 4000ms: clamp to 50ms
+    atspi_set_timeout(50, 50);
+
     // Do a quick one-time initial desktop check purely in the background thread at startup
     AtspiAccessible* desktop = atspi_get_desktop(0);
     if (desktop) {
@@ -76,6 +96,11 @@ void CaretDetector::runEventLoop() {
         for (int i = 0; i < count; ++i) {
             AtspiAccessible* app = atspi_accessible_get_child_at_index(desktop, i, nullptr);
             if (!app) continue;
+            guint app_pid = atspi_accessible_get_process_id(app, nullptr);
+            if (app_pid == static_cast<guint>(getpid())) {
+                g_object_unref(app);
+                continue;
+            }
             const char* aname = atspi_accessible_get_name(app, nullptr);
             std::string app_str = aname ? aname : "";
             if (app_str != "cliptraylt" && app_str != "gnome-shell") {

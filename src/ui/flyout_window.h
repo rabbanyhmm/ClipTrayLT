@@ -71,6 +71,7 @@ private:
     QPointer<QPropertyAnimation> hide_anim_ = nullptr;
     unsigned long target_window_ = 0;
     bool target_is_terminal_ = false;
+    bool pasting_in_progress_ = false;
 
     void updateSelection(int new_index);
     void pasteCardAt(int index);
