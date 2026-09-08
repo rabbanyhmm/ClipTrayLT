@@ -18,6 +18,7 @@ public:
     static void initialize();
     static void shutdown();
     static std::optional<CaretInfo> getActiveTextCaret();
+    static bool isTerminalActive();
 
 private:
     static void runEventLoop();

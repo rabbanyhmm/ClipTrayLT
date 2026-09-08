@@ -73,8 +73,10 @@ void PasteInjector::emitKey(int type, int code, int val) {
     (void)ret;
 }
 
-bool PasteInjector::paste(int delay_ms) {
-    std::cout << "[PasteInjector] PASTE INJECTED! delay=" << delay_ms << std::endl << std::flush;
+bool PasteInjector::paste(int delay_ms, bool is_terminal) {
+    std::cout << "[PasteInjector] PASTE INJECTED! delay=" << delay_ms
+              << " target=" << (is_terminal ? "TERMINAL (Ctrl+Shift+V)" : "STANDARD (Ctrl+V)")
+              << std::endl << std::flush;
     if (uinput_fd_ < 0) {
         if (!init()) return false;
     }
@@ -83,17 +85,48 @@ bool PasteInjector::paste(int delay_ms) {
         std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
     }
 
-    emitKey(EV_KEY, KEY_LEFTCTRL, 1);
-    emitKey(EV_SYN, SYN_REPORT, 0);
+    if (is_terminal) {
+        // Modern Linux terminals (GNOME Terminal, Ptyxis, Konsole, Kitty, Alacritty, etc.)
+        // require Ctrl + Shift + V for clipboard pasting (Ctrl+V is verbatim/lnext insert).
+        emitKey(EV_KEY, KEY_LEFTCTRL, 1);
+        emitKey(EV_SYN, SYN_REPORT, 0);
 
-    emitKey(EV_KEY, KEY_V, 1);
-    emitKey(EV_SYN, SYN_REPORT, 0);
+        emitKey(EV_KEY, KEY_LEFTSHIFT, 1);
+        emitKey(EV_SYN, SYN_REPORT, 0);
 
-    emitKey(EV_KEY, KEY_V, 0);
-    emitKey(EV_SYN, SYN_REPORT, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
 
-    emitKey(EV_KEY, KEY_LEFTCTRL, 0);
-    emitKey(EV_SYN, SYN_REPORT, 0);
+        emitKey(EV_KEY, KEY_V, 1);
+        emitKey(EV_SYN, SYN_REPORT, 0);
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(15));
+
+        emitKey(EV_KEY, KEY_V, 0);
+        emitKey(EV_SYN, SYN_REPORT, 0);
+
+        emitKey(EV_KEY, KEY_LEFTSHIFT, 0);
+        emitKey(EV_SYN, SYN_REPORT, 0);
+
+        emitKey(EV_KEY, KEY_LEFTCTRL, 0);
+        emitKey(EV_SYN, SYN_REPORT, 0);
+    } else {
+        // Standard GUI applications (Browsers, Text Editors, Chat) use Ctrl + V.
+        emitKey(EV_KEY, KEY_LEFTCTRL, 1);
+        emitKey(EV_SYN, SYN_REPORT, 0);
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+
+        emitKey(EV_KEY, KEY_V, 1);
+        emitKey(EV_SYN, SYN_REPORT, 0);
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(15));
+
+        emitKey(EV_KEY, KEY_V, 0);
+        emitKey(EV_SYN, SYN_REPORT, 0);
+
+        emitKey(EV_KEY, KEY_LEFTCTRL, 0);
+        emitKey(EV_SYN, SYN_REPORT, 0);
+    }
 
     return true;
 }

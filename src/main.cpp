@@ -29,6 +29,7 @@
 #include "evdev_listener.h"
 #include "global_hotkey.h"
 #include "flyout_window.h"
+#include "caret_detector.h"
 
 namespace fs = std::filesystem;
 
@@ -513,6 +514,12 @@ int main(int argc, char *argv[]) {
 
     tray_icon->setContextMenu(tray_menu);
     tray_icon->show();
+
+    // Start background AT-SPI caret and active application tracking
+    CaretDetector::initialize();
+    QObject::connect(&app, &QApplication::aboutToQuit, []() {
+        CaretDetector::shutdown();
+    });
 
     std::cout << "[Ready] Monitoring clipboard (Max " << Config::get().max_items << " items, "
               << (Config::get().save_to_disk ? "persistent on disk" : "in-memory RAM only") << ").\n";

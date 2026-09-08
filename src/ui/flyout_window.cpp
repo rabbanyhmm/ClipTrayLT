@@ -1,6 +1,7 @@
 #include "flyout_window.h"
 #include "style.h"
 #include "config.h"
+#include "caret_detector.h"
 #include <QScreen>
 #include <QGuiApplication>
 #include <QKeyEvent>
@@ -15,8 +16,79 @@
 #include <iostream>
 #include <thread>
 #include <cstring>
+#include <cctype>
+#include <vector>
+#include <string>
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
+#include <X11/Xutil.h>
+
+static bool isTerminalX11Window(unsigned long win) {
+    if (win == 0) return false;
+    Display* display = XOpenDisplay(nullptr);
+    if (!display) return false;
+
+    bool is_term = false;
+    XClassHint hint;
+    if (XGetClassHint(display, win, &hint)) {
+        std::string res_name = hint.res_name ? hint.res_name : "";
+        std::string res_class = hint.res_class ? hint.res_class : "";
+        if (hint.res_name) XFree(hint.res_name);
+        if (hint.res_class) XFree(hint.res_class);
+
+        std::string combined = res_name + " " + res_class;
+        for (char& c : combined) c = std::tolower(c);
+
+        static const std::vector<std::string> terms = {
+            "terminal", "ptyxis", "konsole", "kitty", "alacritty", "wezterm",
+            "terminator", "tilix", "foot", "xterm", "urxvt", "rxvt", "tilda",
+            "guake", "yakuake", "hyper", "rio", "contour"
+        };
+        for (const auto& t : terms) {
+            if (combined.find(t) != std::string::npos) {
+                is_term = true;
+                break;
+            }
+        }
+    }
+
+    if (!is_term) {
+        Atom net_pid = XInternAtom(display, "_NET_WM_PID", False);
+        Atom actual_type;
+        int actual_format;
+        unsigned long nitems, bytes_after;
+        unsigned char* prop = nullptr;
+        if (XGetWindowProperty(display, win, net_pid, 0, 1, False,
+                               XA_CARDINAL, &actual_type, &actual_format, &nitems, &bytes_after, &prop) == Success && prop) {
+            if (nitems > 0) {
+                pid_t pid = *reinterpret_cast<pid_t*>(prop);
+                std::string comm_path = "/proc/" + std::to_string(pid) + "/comm";
+                FILE* f = fopen(comm_path.c_str(), "r");
+                if (f) {
+                    char buf[256];
+                    if (fgets(buf, sizeof(buf), f)) {
+                        std::string comm = buf;
+                        for (char& c : comm) c = std::tolower(c);
+                        if (comm.find("terminal") != std::string::npos ||
+                            comm.find("ptyxis") != std::string::npos ||
+                            comm.find("konsole") != std::string::npos ||
+                            comm.find("kitty") != std::string::npos ||
+                            comm.find("alacritty") != std::string::npos ||
+                            comm.find("foot") != std::string::npos ||
+                            comm.find("xterm") != std::string::npos) {
+                            is_term = true;
+                        }
+                    }
+                    fclose(f);
+                }
+            }
+            XFree(prop);
+        }
+    }
+
+    XCloseDisplay(display);
+    return is_term;
+}
 
 static unsigned long getActiveX11Window() {
     Display* display = XOpenDisplay(nullptr);
@@ -276,6 +348,9 @@ void FlyoutWindow::showFlyout() {
     if (active != 0 && active != static_cast<unsigned long>(winId())) {
         target_window_ = active;
     }
+    target_is_terminal_ = isTerminalX11Window(active) || CaretDetector::isTerminalActive();
+    std::cout << "[Flyout] showFlyout: target_window=" << target_window_
+              << ", is_terminal=" << (target_is_terminal_ ? "YES" : "NO") << "\n" << std::flush;
 
     if (search_bar_) {
         search_bar_->blockSignals(true);
@@ -512,6 +587,7 @@ void FlyoutWindow::pasteCardAt(int index) {
 
 void FlyoutWindow::onCardClicked(int64_t id) {
     std::cout << "[Flyout] onCardClicked triggered for ID=" << id << "\n" << std::flush;
+    bool is_terminal = target_is_terminal_;
     hideFlyout();
 
     if (target_window_ != 0) {
@@ -530,7 +606,10 @@ void FlyoutWindow::onCardClicked(int64_t id) {
     if (item.content_type == "image" && !item.image_data.empty()) {
         QPixmap pix;
         pix.loadFromData(item.image_data.data(), static_cast<uint>(item.image_data.size()));
-        clipboard->setPixmap(pix);
+        clipboard->setPixmap(pix, QClipboard::Clipboard);
+        if (clipboard->supportsSelection()) {
+            clipboard->setPixmap(pix, QClipboard::Selection);
+        }
     } else {
         auto* mime = new QMimeData();
         QByteArray data_bytes(item.text_content.data(), static_cast<int>(item.text_content.size()));
@@ -544,14 +623,29 @@ void FlyoutWindow::onCardClicked(int64_t id) {
         if (item.content_type == "raw") {
             mime->setData("application/octet-stream", data_bytes);
         }
-        clipboard->setMimeData(mime);
+        clipboard->setMimeData(mime, QClipboard::Clipboard);
+
+        if (clipboard->supportsSelection()) {
+            auto* mime_sel = new QMimeData();
+            mime_sel->setData("text/plain", data_bytes);
+            mime_sel->setText(QString::fromUtf8(item.text_content.data(), static_cast<int>(item.text_content.size())));
+            if (!item.html_content.empty()) {
+                QByteArray html_bytes(item.html_content.data(), static_cast<int>(item.html_content.size()));
+                mime_sel->setData("text/html", html_bytes);
+                mime_sel->setHtml(QString::fromUtf8(item.html_content.data(), static_cast<int>(item.html_content.size())));
+            }
+            if (item.content_type == "raw") {
+                mime_sel->setData("application/octet-stream", data_bytes);
+            }
+            clipboard->setMimeData(mime_sel, QClipboard::Selection);
+        }
     }
 
     clip_daemon_->setSelfCopying(false);
 
     auto injector = paste_injector_;
-    std::thread([injector]() {
-        injector->paste(45);
+    std::thread([injector, is_terminal]() {
+        injector->paste(60, is_terminal);
     }).detach();
 }
 

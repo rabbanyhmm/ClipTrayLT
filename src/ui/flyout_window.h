@@ -70,6 +70,7 @@ private:
     QPointer<QParallelAnimationGroup> anim_group_ = nullptr;
     QPointer<QPropertyAnimation> hide_anim_ = nullptr;
     unsigned long target_window_ = 0;
+    bool target_is_terminal_ = false;
 
     void updateSelection(int new_index);
     void pasteCardAt(int index);

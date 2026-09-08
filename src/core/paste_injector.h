@@ -8,7 +8,7 @@ public:
     ~PasteInjector();
 
     bool init();
-    bool paste(int delay_ms = 35);
+    bool paste(int delay_ms = 45, bool is_terminal = false);
 
 private:
     int uinput_fd_ = -1;
