@@ -140,6 +140,17 @@ const QString WIN10_FLYOUT_STYLE = R"(
         font-size: 12px;
         font-family: 'Segoe UI', 'Ubuntu', 'Cantarell', sans-serif;
     }
+
+    /* Tooltip fallback */
+    QToolTip {
+        background-color: #2b2b2b;
+        color: #f1f1f1;
+        border: 1px solid #444444;
+        border-radius: 4px;
+        padding: 4px 8px;
+        font-size: 11px;
+        font-family: 'Segoe UI', 'Ubuntu', 'Cantarell', sans-serif;
+    }
 )";
 
 } // namespace Style

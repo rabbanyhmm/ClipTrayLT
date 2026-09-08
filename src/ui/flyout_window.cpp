@@ -551,9 +551,6 @@ void FlyoutWindow::reloadHistory(const QString& query) {
     for (const auto& item : items) {
         auto* card = new ItemCard(item, list_container_);
         card->installEventFilter(this);
-        if (idx < 9) {
-            card->setToolTip(QString("Click or press Enter to paste (Alt+%1)").arg(idx + 1));
-        }
         connect(card, &ItemCard::clicked, this, &FlyoutWindow::onCardClicked);
         connect(card, &ItemCard::pinToggled, this, &FlyoutWindow::onPinToggled);
         connect(card, &ItemCard::deleteRequested, this, &FlyoutWindow::onDeleteRequested);
@@ -734,6 +731,10 @@ void FlyoutWindow::keyPressEvent(QKeyEvent* event) {
 }
 
 bool FlyoutWindow::eventFilter(QObject* watched, QEvent* event) {
+    if (event->type() == QEvent::ToolTip) {
+        return true; // Completely suppress tooltip popups to prevent Wayland/X11 black box artifacts
+    }
+
     if (watched == search_bar_ && event->type() == QEvent::KeyPress) {
         auto* ke = static_cast<QKeyEvent*>(event);
         if (ke->key() == Qt::Key_Down) {

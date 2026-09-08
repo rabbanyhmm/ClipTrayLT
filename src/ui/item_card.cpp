@@ -99,7 +99,6 @@ ItemCard::ItemCard(const ClipboardRecord& record, QWidget* parent)
         QString preview_text = QString("📦 Binary Payload (%1)\n%2").arg(size_str).arg(hex_preview.trimmed());
         content_label_->setText(preview_text);
         content_label_->setMaximumHeight(70);
-        setToolTip(QString("Raw Binary Data: %1 (%2 bytes)\nClick or press Enter to paste").arg(size_str).arg(effective_size));
     } else {
         content_label_->setWordWrap(true);
         size_t effective_size = (record_.full_size > 0) ? record_.full_size : record_.text_content.size();
@@ -113,9 +112,6 @@ ItemCard::ItemCard(const ClipboardRecord& record, QWidget* parent)
         }
         content_label_->setText(text);
         content_label_->setMaximumHeight(70);
-        if (effective_size > 32 * 1024) {
-            setToolTip(QString("Large Text: %1 (%2 bytes)\nClick or press Enter to paste").arg(formatByteSize(effective_size)).arg(effective_size));
-        }
     }
     main_layout->addWidget(content_label_, 1);
 
@@ -141,7 +137,6 @@ ItemCard::ItemCard(const ClipboardRecord& record, QWidget* parent)
 
     delete_btn_ = new QPushButton("✕", this);
     delete_btn_->setObjectName("CardActionBtn");
-    delete_btn_->setToolTip("Delete");
     delete_btn_->setFixedSize(24, 24);
     delete_btn_->setFocusPolicy(Qt::NoFocus);
     delete_btn_->setCursor(Qt::PointingHandCursor);
@@ -159,7 +154,6 @@ void ItemCard::updatePinUi() {
     pin_btn_->setIcon(createPinIcon(record_.is_pinned));
     pin_btn_->setIconSize(QSize(16, 16));
     pin_btn_->setProperty("pinned", record_.is_pinned);
-    pin_btn_->setToolTip(record_.is_pinned ? "Unpin item" : "Pin item");
     pin_btn_->style()->unpolish(pin_btn_);
     pin_btn_->style()->polish(pin_btn_);
 }
