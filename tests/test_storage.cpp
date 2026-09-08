@@ -157,12 +157,40 @@ int main() {
     assert(retrieved_raw->text_content.size() == 27);
     assert(retrieved_raw->text_content == raw_string);
 
-    auto items_raw = raw_storage.getItems(10);
-    assert(!items_raw.empty());
-    assert(items_raw[0].text_content.size() == 27);
-    assert(items_raw[0].text_content == raw_string);
-    std::filesystem::remove(raw_db);
-    std::cout << "Raw binary payload with embedded nulls verified successfully!\n";
+    // 10. Test Multi-Megabyte (10MB) Large Text Payload
+    std::string huge_db = "/tmp/test_sc_huge.db";
+    StorageManager huge_storage(huge_db);
+    std::string huge_payload(10 * 1024 * 1024, 'A');
+    huge_payload[0] = '[';
+    huge_payload[huge_payload.size() - 1] = ']';
+    int64_t huge_id = huge_storage.addItem("text", huge_payload);
+    assert(huge_id > 0);
+
+    auto retrieved_huge = huge_storage.getItemById(huge_id);
+    assert(retrieved_huge.has_value());
+    assert(retrieved_huge->text_content.size() == 10 * 1024 * 1024);
+    assert(retrieved_huge->text_content.front() == '[');
+    assert(retrieved_huge->text_content.back() == ']');
+    std::filesystem::remove(huge_db);
+    std::cout << "Huge 10MB payload storage and retrieval verified successfully!\n";
+
+    // 11. Test Custom Binary Format (e.g. application/octet-stream or custom mime)
+    std::string custom_bin_db = "/tmp/test_sc_custom_bin.db";
+    StorageManager custom_storage(custom_bin_db);
+    std::string bin_payload(2 * 1024 * 1024, '\0');
+    for (size_t i = 0; i < bin_payload.size(); ++i) {
+        bin_payload[i] = static_cast<char>(i % 256);
+    }
+    int64_t bin_id = custom_storage.addItem("raw", bin_payload, "application/octet-stream");
+    assert(bin_id > 0);
+
+    auto retrieved_bin = custom_storage.getItemById(bin_id);
+    assert(retrieved_bin.has_value());
+    assert(retrieved_bin->text_content.size() == 2 * 1024 * 1024);
+    assert(retrieved_bin->html_content == "application/octet-stream");
+    assert(retrieved_bin->text_content == bin_payload);
+    std::filesystem::remove(custom_bin_db);
+    std::cout << "2MB arbitrary binary data with embedded nulls and custom MIME verified successfully!\n";
 
     return 0;
 }

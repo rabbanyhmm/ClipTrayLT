@@ -35,6 +35,26 @@ static QIcon createPinIcon(bool pinned) {
     return QIcon(pix);
 }
 
+static QString formatByteSize(size_t bytes) {
+    if (bytes < 1024) return QString("%1 B").arg(bytes);
+    if (bytes < 1024 * 1024) return QString("%1 KB").arg(QString::number(bytes / 1024.0, 'f', 1));
+    return QString("%1 MB").arg(QString::number(bytes / (1024.0 * 1024.0), 'f', 1));
+}
+
+static bool isBinaryPayload(const std::string& data) {
+    if (data.empty()) return false;
+    size_t check_len = std::min<size_t>(data.size(), 512);
+    size_t non_printable = 0;
+    for (size_t i = 0; i < check_len; ++i) {
+        unsigned char c = static_cast<unsigned char>(data[i]);
+        if (c == 0) return true;
+        if (c < 32 && c != '\t' && c != '\n' && c != '\r') {
+            non_printable++;
+        }
+    }
+    return (non_printable * 100 / check_len) > 15;
+}
+
 ItemCard::ItemCard(const ClipboardRecord& record, QWidget* parent)
     : QWidget(parent), record_(record) {
     setObjectName("ItemCard");
@@ -59,6 +79,21 @@ ItemCard::ItemCard(const ClipboardRecord& record, QWidget* parent)
         } else {
             content_label_->setText("[Image content]");
         }
+    } else if (record_.content_type == "raw" || isBinaryPayload(record_.text_content)) {
+        content_label_->setWordWrap(true);
+        QString size_str = formatByteSize(record_.text_content.size());
+        size_t hex_len = std::min<size_t>(record_.text_content.size(), 14);
+        QString hex_preview;
+        for (size_t i = 0; i < hex_len; ++i) {
+            hex_preview += QString::asprintf("%02X ", static_cast<unsigned char>(record_.text_content[i]));
+        }
+        if (record_.text_content.size() > hex_len) {
+            hex_preview += "...";
+        }
+        QString preview_text = QString("📦 Binary Payload (%1)\n%2").arg(size_str).arg(hex_preview.trimmed());
+        content_label_->setText(preview_text);
+        content_label_->setMaximumHeight(70);
+        setToolTip(QString("Raw Binary Data: %1 (%2 bytes)\nClick or press Enter to paste").arg(size_str).arg(record_.text_content.size()));
     } else {
         content_label_->setWordWrap(true);
         size_t preview_len = std::min<size_t>(record_.text_content.size(), 400);
@@ -67,10 +102,13 @@ ItemCard::ItemCard(const ClipboardRecord& record, QWidget* parent)
             text = text.left(240) + "...";
         }
         if (text.isEmpty() && !record_.text_content.empty()) {
-            text = QString("[%1 bytes raw binary data]").arg(record_.text_content.size());
+            text = QString("[%1 raw binary data]").arg(formatByteSize(record_.text_content.size()));
         }
         content_label_->setText(text);
         content_label_->setMaximumHeight(70);
+        if (record_.text_content.size() > 32 * 1024) {
+            setToolTip(QString("Large Text: %1 (%2 bytes)\nClick or press Enter to paste").arg(formatByteSize(record_.text_content.size())).arg(record_.text_content.size()));
+        }
     }
     main_layout->addWidget(content_label_, 1);
 

@@ -121,8 +121,24 @@ void ClipboardDaemon::onClipboardChanged() {
         }
     }
 
-    if (mime->hasText()) {
-        QByteArray raw_bytes = mime->data("text/plain");
+    bool has_text = mime->hasText() ||
+                    mime->hasFormat("text/plain") ||
+                    mime->hasFormat("text/plain;charset=utf-8") ||
+                    mime->hasFormat("UTF8_STRING") ||
+                    mime->hasFormat("STRING");
+
+    if (has_text) {
+        QByteArray raw_bytes;
+        if (mime->hasFormat("text/plain")) {
+            raw_bytes = mime->data("text/plain");
+        } else if (mime->hasFormat("text/plain;charset=utf-8")) {
+            raw_bytes = mime->data("text/plain;charset=utf-8");
+        } else if (mime->hasFormat("UTF8_STRING")) {
+            raw_bytes = mime->data("UTF8_STRING");
+        } else if (mime->hasFormat("STRING")) {
+            raw_bytes = mime->data("STRING");
+        }
+
         std::string raw_str;
         if (!raw_bytes.isEmpty()) {
             raw_str.assign(raw_bytes.constData(), raw_bytes.size());
@@ -153,7 +169,7 @@ void ClipboardDaemon::onClipboardChanged() {
         }
 
         int64_t id = storage_->addItem("text", raw_str, html_str);
-        std::cout << "[ClipboardDaemon] Captured copied content (ID: " << id
+        std::cout << "[ClipboardDaemon] Captured copied text/content (ID: " << id
                   << ", Size: " << raw_str.size() << " bytes)\n" << std::flush;
         emit historyUpdated();
         return;
@@ -183,22 +199,34 @@ void ClipboardDaemon::onClipboardChanged() {
         }
     }
 
-    // Capture raw binary data streams (e.g. octet-stream, custom binary formats)
+    // Capture arbitrary raw binary data streams, custom application payloads, and files
     for (const QString& fmt : mime->formats()) {
-        if (fmt.contains("octet-stream") || fmt.contains("binary") || fmt.contains("raw") || fmt.contains("data")) {
-            QByteArray data = mime->data(fmt);
-            if (!data.isEmpty()) {
-                std::string raw_str(data.constData(), data.size());
-                if (raw_str == last_saved_raw_) return;
-                last_saved_raw_ = raw_str;
-
-                int64_t id = storage_->addItem("raw", raw_str, "");
-                std::cout << "[ClipboardDaemon] Captured raw binary stream (ID: " << id
-                          << ", Format: " << fmt.toStdString()
-                          << ", Size: " << data.size() << " bytes)\n" << std::flush;
-                emit historyUpdated();
+        if (fmt.startsWith("application/x-qt") ||
+            fmt.startsWith("text/") ||
+            fmt == "UTF8_STRING" ||
+            fmt == "STRING" ||
+            fmt == "TEXT" ||
+            fmt == "TIMESTAMP" ||
+            fmt == "TARGETS" ||
+            fmt == "MULTIPLE" ||
+            fmt == "DELETE") {
+            continue;
+        }
+        QByteArray data = mime->data(fmt);
+        if (!data.isEmpty()) {
+            std::string raw_str(data.constData(), data.size());
+            if (raw_str == last_saved_raw_) {
                 return;
             }
+            last_saved_raw_ = raw_str;
+            last_text_copy_time_ = std::chrono::steady_clock::now();
+
+            int64_t id = storage_->addItem("raw", raw_str, fmt.toStdString());
+            std::cout << "[ClipboardDaemon] Captured raw binary stream (ID: " << id
+                      << ", Format: " << fmt.toStdString()
+                      << ", Size: " << data.size() << " bytes)\n" << std::flush;
+            emit historyUpdated();
+            return;
         }
     }
 }

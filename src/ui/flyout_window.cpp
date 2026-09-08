@@ -609,11 +609,15 @@ void FlyoutWindow::onCardClicked(int64_t id) {
         auto* mime = new QMimeData();
         QByteArray data_bytes(item.text_content.data(), static_cast<int>(item.text_content.size()));
         mime->setData("text/plain", data_bytes);
-        mime->setText(QString::fromUtf8(item.text_content.data(), static_cast<int>(item.text_content.size())));
+        mime->setData("text/plain;charset=utf-8", data_bytes);
+        mime->setData("UTF8_STRING", data_bytes);
         if (!item.html_content.empty()) {
             QByteArray html_bytes(item.html_content.data(), static_cast<int>(item.html_content.size()));
-            mime->setData("text/html", html_bytes);
-            mime->setHtml(QString::fromUtf8(item.html_content.data(), static_cast<int>(item.html_content.size())));
+            if (item.content_type == "raw") {
+                mime->setData(QString::fromStdString(item.html_content), data_bytes);
+            } else {
+                mime->setData("text/html", html_bytes);
+            }
         }
         if (item.content_type == "raw") {
             mime->setData("application/octet-stream", data_bytes);
@@ -623,11 +627,15 @@ void FlyoutWindow::onCardClicked(int64_t id) {
         if (clipboard->supportsSelection()) {
             auto* mime_sel = new QMimeData();
             mime_sel->setData("text/plain", data_bytes);
-            mime_sel->setText(QString::fromUtf8(item.text_content.data(), static_cast<int>(item.text_content.size())));
+            mime_sel->setData("text/plain;charset=utf-8", data_bytes);
+            mime_sel->setData("UTF8_STRING", data_bytes);
             if (!item.html_content.empty()) {
                 QByteArray html_bytes(item.html_content.data(), static_cast<int>(item.html_content.size()));
-                mime_sel->setData("text/html", html_bytes);
-                mime_sel->setHtml(QString::fromUtf8(item.html_content.data(), static_cast<int>(item.html_content.size())));
+                if (item.content_type == "raw") {
+                    mime_sel->setData(QString::fromStdString(item.html_content), data_bytes);
+                } else {
+                    mime_sel->setData("text/html", html_bytes);
+                }
             }
             if (item.content_type == "raw") {
                 mime_sel->setData("application/octet-stream", data_bytes);
