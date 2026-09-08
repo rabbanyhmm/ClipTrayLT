@@ -61,6 +61,8 @@ ItemCard::ItemCard(const ClipboardRecord& record, QWidget* parent)
     setAttribute(Qt::WA_StyledBackground, true);
     setFocusPolicy(Qt::NoFocus);
     setCursor(Qt::PointingHandCursor);
+    setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    setMinimumWidth(0);
 
     auto* main_layout = new QHBoxLayout(this);
     main_layout->setContentsMargins(12, 10, 8, 10);
@@ -71,12 +73,14 @@ ItemCard::ItemCard(const ClipboardRecord& record, QWidget* parent)
     content_label_->setObjectName("ItemText");
     content_label_->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     content_label_->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+    content_label_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    content_label_->setMinimumWidth(0);
 
     if (record_.content_type == "image" && !record_.image_data.empty()) {
         QPixmap pixmap;
         pixmap.loadFromData(record_.image_data.data(), static_cast<uint>(record_.image_data.size()));
         if (!pixmap.isNull()) {
-            content_label_->setPixmap(pixmap.scaledToHeight(70, Qt::SmoothTransformation));
+            content_label_->setPixmap(pixmap.scaled(250, 70, Qt::KeepAspectRatio, Qt::SmoothTransformation));
         } else {
             content_label_->setText("[Image content]");
         }

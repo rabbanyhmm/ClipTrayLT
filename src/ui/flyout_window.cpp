@@ -258,6 +258,8 @@ FlyoutWindow::FlyoutWindow(std::shared_ptr<StorageManager> storage,
     list_container_ = new QWidget(scroll_area_);
     list_container_->setStyleSheet("background: transparent;");
     list_container_->setFocusPolicy(Qt::NoFocus);
+    list_container_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    list_container_->setMinimumWidth(0);
     list_layout_ = new QVBoxLayout(list_container_);
     list_layout_->setContentsMargins(0, 0, 0, 0);
     list_layout_->setSpacing(6);
