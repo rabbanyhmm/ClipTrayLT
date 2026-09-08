@@ -511,8 +511,8 @@ void FlyoutWindow::reloadHistory(const QString& query) {
     cards_.clear();
     selected_index_ = -1;
 
-    // Load items matching search query up to Config limit
-    auto items = storage_->getItems(-1, query.toStdString());
+    // Load lightweight preview items matching search query up to Config limit
+    auto items = storage_->getItemPreviews(-1, query.toStdString());
     if (items.empty()) {
         scroll_area_->hide();
         clear_all_btn_->setEnabled(false);
@@ -620,7 +620,7 @@ void FlyoutWindow::onCardClicked(int64_t id) {
         }
     } else {
         auto* mime = new QMimeData();
-        QByteArray data_bytes(item.text_content.data(), static_cast<int>(item.text_content.size()));
+        QByteArray data_bytes = QByteArray::fromRawData(item.text_content.data(), static_cast<qsizetype>(item.text_content.size()));
         mime->setData("text/plain", data_bytes);
         mime->setData("text/plain;charset=utf-8", data_bytes);
         mime->setData("UTF8_STRING", data_bytes);

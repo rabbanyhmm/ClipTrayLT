@@ -14,6 +14,7 @@ struct ClipboardRecord {
     std::vector<uint8_t> image_data;
     bool is_pinned = false;
     int64_t created_at = 0;
+    size_t full_size = 0; // True byte size of the payload
 };
 
 class StorageManager {
@@ -30,6 +31,7 @@ public:
 
     void enforceMaxItems(int max_items = -1);
     std::vector<ClipboardRecord> getItems(int limit = -1, const std::string& query = "");
+    std::vector<ClipboardRecord> getItemPreviews(int limit = -1, const std::string& query = "");
     std::optional<ClipboardRecord> getItemById(int64_t id);
     bool togglePin(int64_t id);
     bool deleteItem(int64_t id);

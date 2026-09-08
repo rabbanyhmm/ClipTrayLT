@@ -151,7 +151,7 @@ void ClipboardDaemon::onClipboardChanged() {
 
         auto now = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_text_copy_time_).count();
-        if (raw_str == last_saved_raw_ && elapsed < 400) {
+        if (elapsed < 400 && raw_str.size() == last_saved_raw_.size() && raw_str == last_saved_raw_) {
             // Rapid duplicate event from same keystroke ignored
             return;
         }
@@ -215,7 +215,7 @@ void ClipboardDaemon::onClipboardChanged() {
         QByteArray data = mime->data(fmt);
         if (!data.isEmpty()) {
             std::string raw_str(data.constData(), data.size());
-            if (raw_str == last_saved_raw_) {
+            if (raw_str.size() == last_saved_raw_.size() && raw_str == last_saved_raw_) {
                 return;
             }
             last_saved_raw_ = raw_str;

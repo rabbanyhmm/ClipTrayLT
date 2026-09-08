@@ -82,33 +82,35 @@ ItemCard::ItemCard(const ClipboardRecord& record, QWidget* parent)
         }
     } else if (record_.content_type == "raw" || isBinaryPayload(record_.text_content)) {
         content_label_->setWordWrap(true);
-        QString size_str = formatByteSize(record_.text_content.size());
+        size_t effective_size = (record_.full_size > 0) ? record_.full_size : record_.text_content.size();
+        QString size_str = formatByteSize(effective_size);
         size_t hex_len = std::min<size_t>(record_.text_content.size(), 14);
         QString hex_preview;
         for (size_t i = 0; i < hex_len; ++i) {
             hex_preview += QString::asprintf("%02X ", static_cast<unsigned char>(record_.text_content[i]));
         }
-        if (record_.text_content.size() > hex_len) {
+        if (effective_size > hex_len) {
             hex_preview += "...";
         }
         QString preview_text = QString("📦 Binary Payload (%1)\n%2").arg(size_str).arg(hex_preview.trimmed());
         content_label_->setText(preview_text);
         content_label_->setMaximumHeight(70);
-        setToolTip(QString("Raw Binary Data: %1 (%2 bytes)\nClick or press Enter to paste").arg(size_str).arg(record_.text_content.size()));
+        setToolTip(QString("Raw Binary Data: %1 (%2 bytes)\nClick or press Enter to paste").arg(size_str).arg(effective_size));
     } else {
         content_label_->setWordWrap(true);
+        size_t effective_size = (record_.full_size > 0) ? record_.full_size : record_.text_content.size();
         size_t preview_len = std::min<size_t>(record_.text_content.size(), 400);
         QString text = QString::fromUtf8(record_.text_content.data(), static_cast<int>(preview_len)).trimmed();
-        if (record_.text_content.size() > preview_len || text.length() > 240) {
+        if (effective_size > preview_len || text.length() > 240) {
             text = text.left(240) + "...";
         }
         if (text.isEmpty() && !record_.text_content.empty()) {
-            text = QString("[%1 raw binary data]").arg(formatByteSize(record_.text_content.size()));
+            text = QString("[%1 raw binary data]").arg(formatByteSize(effective_size));
         }
         content_label_->setText(text);
         content_label_->setMaximumHeight(70);
-        if (record_.text_content.size() > 32 * 1024) {
-            setToolTip(QString("Large Text: %1 (%2 bytes)\nClick or press Enter to paste").arg(formatByteSize(record_.text_content.size())).arg(record_.text_content.size()));
+        if (effective_size > 32 * 1024) {
+            setToolTip(QString("Large Text: %1 (%2 bytes)\nClick or press Enter to paste").arg(formatByteSize(effective_size)).arg(effective_size));
         }
     }
     main_layout->addWidget(content_label_, 1);

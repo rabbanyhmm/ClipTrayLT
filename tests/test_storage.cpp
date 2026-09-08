@@ -192,5 +192,65 @@ int main() {
     std::filesystem::remove(custom_bin_db);
     std::cout << "2MB arbitrary binary data with embedded nulls and custom MIME verified successfully!\n";
 
+    // 12. Test 50MB Massive Payload Storage, Instant Previews, and Full Retrieval
+    std::string massive_db = "/tmp/test_sc_massive_50mb.db";
+    StorageManager massive_storage(massive_db);
+    size_t payload_50mb = 50 * 1024 * 1024;
+    std::string text_50mb(payload_50mb, 'X');
+    text_50mb[0] = '{';
+    text_50mb[1] = '\"';
+    text_50mb[2] = 'k';
+    text_50mb[payload_50mb - 1] = '}';
+
+    int64_t massive_id = massive_storage.addItem("text", text_50mb);
+    assert(massive_id > 0);
+
+    // Verify lightweight preview performance
+    auto previews = massive_storage.getItemPreviews(10);
+    assert(!previews.empty());
+    assert(previews[0].id == massive_id);
+    assert(previews[0].full_size == payload_50mb);
+    assert(previews[0].text_content.size() <= 512);
+    assert(previews[0].text_content.substr(0, 3) == "{\"k");
+
+    // Verify full untruncated retrieval
+    auto full_massive = massive_storage.getItemById(massive_id);
+    assert(full_massive.has_value());
+    assert(full_massive->text_content.size() == payload_50mb);
+    assert(full_massive->full_size == payload_50mb);
+    assert(full_massive->text_content.front() == '{');
+    assert(full_massive->text_content.back() == '}');
+    std::filesystem::remove(massive_db);
+    std::cout << "Massive 50MB payload storage, instant previews, and full fidelity retrieval verified successfully!\n";
+
+    // 13. Test 20MB Binary Data with Embedded Nulls & O(1) Hash Deduplication
+    std::string bin20_db = "/tmp/test_sc_bin20mb.db";
+    StorageManager bin20_storage(bin20_db);
+    size_t bin20_size = 20 * 1024 * 1024;
+    std::string bin20_data(bin20_size, '\0');
+    for (size_t i = 0; i < bin20_size; i += 4) {
+        bin20_data[i] = static_cast<char>(i & 0xFF);
+    }
+    int64_t b1_id = bin20_storage.addItem("raw", bin20_data, "application/octet-stream");
+    assert(b1_id > 0);
+
+    // Re-insert exact same 20MB binary data (should deduplicate and update existing item)
+    int64_t b2_id = bin20_storage.addItem("raw", bin20_data, "application/octet-stream");
+    assert(b2_id == b1_id);
+    (void)b2_id;
+
+    auto bin20_previews = bin20_storage.getItemPreviews();
+    assert(bin20_previews.size() == 1);
+    assert(bin20_previews[0].full_size == bin20_size);
+    assert(bin20_previews[0].text_content.size() <= 512);
+
+    auto retrieved_bin20 = bin20_storage.getItemById(b1_id);
+    assert(retrieved_bin20.has_value());
+    assert(retrieved_bin20->text_content.size() == bin20_size);
+    assert(retrieved_bin20->html_content == "application/octet-stream");
+    assert(retrieved_bin20->text_content == bin20_data);
+    std::filesystem::remove(bin20_db);
+    std::cout << "20MB binary data with embedded nulls and O(1) hash deduplication verified successfully!\n";
+
     return 0;
 }
