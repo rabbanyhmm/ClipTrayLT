@@ -385,10 +385,6 @@ int main(int argc, char *argv[]) {
         fchmod(lock_fd, 0666);
     }
     if (lock_fd < 0 || flock(lock_fd, LOCK_EX | LOCK_NB) != 0) {
-        if (sendIpcCommand("toggle")) {
-            std::cout << "[ClipTray LT] Existing daemon instance triggered via IPC. Exiting duplicate process.\n";
-            return 0;
-        }
         std::cout << "[ClipTray LT] Another instance is already running. Exiting.\n";
         return 0;
     }
