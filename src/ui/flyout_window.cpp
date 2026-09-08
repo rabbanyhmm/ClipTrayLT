@@ -23,91 +23,86 @@
 #include <X11/Xatom.h>
 #include <X11/Xutil.h>
 
-static bool isTerminalX11Window(unsigned long win) {
-    if (win == 0) return false;
+struct TargetWindowInfo {
+    unsigned long win = 0;
+    bool is_terminal = false;
+};
+
+static TargetWindowInfo getActiveWindowInfo(unsigned long flyout_win_id) {
+    TargetWindowInfo info;
     Display* display = XOpenDisplay(nullptr);
-    if (!display) return false;
+    if (!display) return info;
 
-    bool is_term = false;
-    XClassHint hint;
-    if (XGetClassHint(display, win, &hint)) {
-        std::string res_name = hint.res_name ? hint.res_name : "";
-        std::string res_class = hint.res_class ? hint.res_class : "";
-        if (hint.res_name) XFree(hint.res_name);
-        if (hint.res_class) XFree(hint.res_class);
-
-        std::string combined = res_name + " " + res_class;
-        for (char& c : combined) c = std::tolower(c);
-
-        static const std::vector<std::string> terms = {
-            "terminal", "ptyxis", "konsole", "kitty", "alacritty", "wezterm",
-            "terminator", "tilix", "foot", "xterm", "urxvt", "rxvt", "tilda",
-            "guake", "yakuake", "hyper", "rio", "contour"
-        };
-        for (const auto& t : terms) {
-            if (combined.find(t) != std::string::npos) {
-                is_term = true;
-                break;
-            }
-        }
-    }
-
-    if (!is_term) {
-        Atom net_pid = XInternAtom(display, "_NET_WM_PID", False);
-        Atom actual_type;
-        int actual_format;
-        unsigned long nitems, bytes_after;
-        unsigned char* prop = nullptr;
-        if (XGetWindowProperty(display, win, net_pid, 0, 1, False,
-                               XA_CARDINAL, &actual_type, &actual_format, &nitems, &bytes_after, &prop) == Success && prop) {
-            if (nitems > 0) {
-                pid_t pid = *reinterpret_cast<pid_t*>(prop);
-                std::string comm_path = "/proc/" + std::to_string(pid) + "/comm";
-                FILE* f = fopen(comm_path.c_str(), "r");
-                if (f) {
-                    char buf[256];
-                    if (fgets(buf, sizeof(buf), f)) {
-                        std::string comm = buf;
-                        for (char& c : comm) c = std::tolower(c);
-                        if (comm.find("terminal") != std::string::npos ||
-                            comm.find("ptyxis") != std::string::npos ||
-                            comm.find("konsole") != std::string::npos ||
-                            comm.find("kitty") != std::string::npos ||
-                            comm.find("alacritty") != std::string::npos ||
-                            comm.find("foot") != std::string::npos ||
-                            comm.find("xterm") != std::string::npos) {
-                            is_term = true;
-                        }
-                    }
-                    fclose(f);
-                }
-            }
-            XFree(prop);
-        }
-    }
-
-    XCloseDisplay(display);
-    return is_term;
-}
-
-static unsigned long getActiveX11Window() {
-    Display* display = XOpenDisplay(nullptr);
-    if (!display) return 0;
     Atom net_active = XInternAtom(display, "_NET_ACTIVE_WINDOW", False);
     Atom actual_type;
     int actual_format;
     unsigned long nitems, bytes_after;
     unsigned char* prop = nullptr;
-    unsigned long active_win = 0;
     if (XGetWindowProperty(display, DefaultRootWindow(display), net_active, 0, 1, False,
                            XA_WINDOW, &actual_type, &actual_format, &nitems, &bytes_after, &prop) == Success && prop) {
         if (actual_type == XA_WINDOW && actual_format == 32 && nitems > 0) {
-            active_win = *reinterpret_cast<Window*>(prop);
+            info.win = *reinterpret_cast<Window*>(prop);
         }
         XFree(prop);
     }
+
+    if (info.win != 0 && info.win != flyout_win_id) {
+        XClassHint hint;
+        if (XGetClassHint(display, info.win, &hint)) {
+            std::string res_name = hint.res_name ? hint.res_name : "";
+            std::string res_class = hint.res_class ? hint.res_class : "";
+            if (hint.res_name) XFree(hint.res_name);
+            if (hint.res_class) XFree(hint.res_class);
+
+            std::string combined = res_name + " " + res_class;
+            for (char& c : combined) c = std::tolower(c);
+
+            static const std::vector<std::string> terms = {
+                "terminal", "ptyxis", "konsole", "kitty", "alacritty", "wezterm",
+                "terminator", "tilix", "foot", "xterm", "urxvt", "rxvt", "tilda",
+                "guake", "yakuake", "hyper", "rio", "contour"
+            };
+            for (const auto& t : terms) {
+                if (combined.find(t) != std::string::npos) {
+                    info.is_terminal = true;
+                    break;
+                }
+            }
+        }
+
+        if (!info.is_terminal) {
+            Atom net_pid = XInternAtom(display, "_NET_WM_PID", False);
+            if (XGetWindowProperty(display, info.win, net_pid, 0, 1, False,
+                                   XA_CARDINAL, &actual_type, &actual_format, &nitems, &bytes_after, &prop) == Success && prop) {
+                if (nitems > 0) {
+                    pid_t pid = *reinterpret_cast<pid_t*>(prop);
+                    std::string comm_path = "/proc/" + std::to_string(pid) + "/comm";
+                    FILE* f = fopen(comm_path.c_str(), "r");
+                    if (f) {
+                        char buf[256];
+                        if (fgets(buf, sizeof(buf), f)) {
+                            std::string comm = buf;
+                            for (char& c : comm) c = std::tolower(c);
+                            if (comm.find("terminal") != std::string::npos ||
+                                comm.find("ptyxis") != std::string::npos ||
+                                comm.find("konsole") != std::string::npos ||
+                                comm.find("kitty") != std::string::npos ||
+                                comm.find("alacritty") != std::string::npos ||
+                                comm.find("foot") != std::string::npos ||
+                                comm.find("xterm") != std::string::npos) {
+                                info.is_terminal = true;
+                            }
+                        }
+                        fclose(f);
+                    }
+                }
+                XFree(prop);
+            }
+        }
+    }
+
     XCloseDisplay(display);
-    return active_win;
+    return info;
 }
 
 static void restoreActiveX11Window(unsigned long win) {
@@ -344,11 +339,11 @@ void FlyoutWindow::showFlyout() {
     last_show_time_ = std::chrono::steady_clock::now();
 
     // Save previous active window for focus restoration on paste
-    unsigned long active = getActiveX11Window();
-    if (active != 0 && active != static_cast<unsigned long>(winId())) {
-        target_window_ = active;
+    TargetWindowInfo target_info = getActiveWindowInfo(static_cast<unsigned long>(winId()));
+    if (target_info.win != 0) {
+        target_window_ = target_info.win;
     }
-    target_is_terminal_ = isTerminalX11Window(active) || CaretDetector::isTerminalActive();
+    target_is_terminal_ = target_info.is_terminal || CaretDetector::isTerminalActive();
     std::cout << "[Flyout] showFlyout: target_window=" << target_window_
               << ", is_terminal=" << (target_is_terminal_ ? "YES" : "NO") << "\n" << std::flush;
 
@@ -641,7 +636,9 @@ void FlyoutWindow::onCardClicked(int64_t id) {
         }
     }
 
-    clip_daemon_->setSelfCopying(false);
+    QTimer::singleShot(300, this, [daemon = clip_daemon_]() {
+        daemon->setSelfCopying(false);
+    });
 
     auto injector = paste_injector_;
     std::thread([injector, is_terminal]() {

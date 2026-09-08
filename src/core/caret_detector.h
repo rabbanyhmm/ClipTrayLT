@@ -1,23 +1,13 @@
 #pragma once
 
-#include <QPoint>
-#include <optional>
 #include <atomic>
-#include <chrono>
 #include <thread>
-
-struct CaretInfo {
-    int x = 0;
-    int y = 0;
-    int width = 0;
-    int height = 0;
-};
+#include <string>
 
 class CaretDetector {
 public:
     static void initialize();
     static void shutdown();
-    static std::optional<CaretInfo> getActiveTextCaret();
     static bool isTerminalActive();
 
 private:
