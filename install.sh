@@ -38,7 +38,6 @@ install_deps() {
 }
 
 case $OS in
-case $OS in
     ubuntu|debian|pop|mint)
         # Ensure temp space is clean
         rm -rf /tmp/apt-dpkg-install-*
