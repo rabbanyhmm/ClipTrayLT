@@ -39,7 +39,13 @@ install_deps() {
 
 case $OS in
     ubuntu|debian|pop|mint)
-        apt-get update -qq
+        max_retries=3
+        count=0
+        until apt-get update -qq || [ $count -ge $max_retries ]; do
+            echo "==> apt-get update failed, retrying ($((count+1))...)"
+            sleep 5
+            count=$((count+1))
+        done
         install_deps build-essential cmake qt6-base-dev libevdev-dev libsqlite3-dev libatspi2-dev libglib2.0-dev git
         ;;
     fedora|rhel|centos|almalinux)
