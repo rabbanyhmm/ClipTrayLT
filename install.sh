@@ -38,7 +38,12 @@ install_deps() {
 }
 
 case $OS in
+case $OS in
     ubuntu|debian|pop|mint)
+        # Ensure temp space is clean
+        rm -rf /tmp/apt-dpkg-install-*
+        
+        # Update with retry logic
         max_retries=3
         count=0
         until apt-get update -qq || [ $count -ge $max_retries ]; do
@@ -46,7 +51,9 @@ case $OS in
             sleep 5
             count=$((count+1))
         done
-        install_deps build-essential cmake qt6-base-dev libevdev-dev libsqlite3-dev libatspi2-dev libglib2.0-dev git
+
+        # Install all dependencies in one transaction to avoid conflicts
+        apt-get install -y -qq build-essential cmake qt6-base-dev libevdev-dev libsqlite3-dev libatspi2-dev libglib2.0-dev git
         ;;
     fedora|rhel|centos|almalinux)
         install_deps cmake gcc-c++ qt6-qtbase-devel libevdev-devel sqlite-devel at-spi2-core-devel glib2-devel git
