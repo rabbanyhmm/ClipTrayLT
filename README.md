@@ -48,36 +48,38 @@ ClipTray LT is an event-driven clipboard history flyout for Linux. It operates w
 
 ## Installation
 
-### Option 1: Debian / Ubuntu (.deb Package)
+We provide an automated installation script that detects your distribution, installs required dependencies, and sets up ClipTray LT for you.
 
-Download the `.deb` package for your architecture from the [Releases](https://github.com/rabbanyhmm/ClipTrayLT/releases) page:
+### Automated Installation (Recommended)
 
-```bash
-# For x86_64 (Intel / AMD):
-sudo apt install ./cliptraylt_1.0.0_amd64.deb
-
-# For ARM64 (aarch64):
-sudo apt install ./cliptraylt_1.0.0_arm64.deb
-```
-
-### Option 2: Pre-built Binary Tarball
+Run the following command to download and run the installer:
 
 ```bash
-# Extract and run the installer
-tar -xzf cliptraylt-v1.0.0-linux-*.tar.gz
-cd cliptraylt-v1.0.0-linux-*
-./install.sh
+curl -sSL https://raw.githubusercontent.com/rabbanyhmm/ClipTrayLT/main/install.sh | sudo bash
 ```
 
-### Option 3: Build from Source
+### Usage & Upgrading
 
-```bash
-git clone https://github.com/rabbanyhmm/ClipTrayLT.git
-cd ClipTrayLT
-./install.sh
-```
+Once installed, you can use the `cliptraylt` command in your terminal to manage the application:
 
-The installer sets up persistent udev permissions (no root/`sudo` needed at runtime), configures the `Super+V` shortcut, and registers a background user service.
+| Command | Description |
+| :--- | :--- |
+| `cliptraylt` | Launch the application/flyout |
+| `cliptraylt --version` | Check the currently installed version |
+| `cliptraylt upgrade` | Automatically upgrade to the latest version |
+
+*Note: For the `cliptraylt upgrade` command to work, you must have cloned the project into a directory (e.g., `/opt/cliptraylt`) or kept the original installation directory where the installer was run.*
+
+### Supported Environments
+
+| Environment | Automated Support | Status |
+| :--- | :--- | :--- |
+| **Debian / Ubuntu / Pop!_OS / Mint** | Yes | Full Support |
+| **Fedora / RHEL / AlmaLinux** | Yes | Full Support |
+| **Arch Linux / Manjaro** | Yes | Full Support |
+| **Older/Minimal Distributions** | No | Manual Setup Required |
+
+*If your distribution is not listed above, you may need to install the following dependencies manually: `cmake`, `g++`, `qt6-base`, `libevdev`, `libsqlite3`, `at-spi2-core`, and `glib2`.*
 
 ### Updating
 
