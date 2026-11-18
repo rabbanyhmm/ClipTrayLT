@@ -48,39 +48,24 @@ ClipTray LT is an event-driven clipboard history flyout for Linux. It operates w
 
 ## Installation
 
-### Option 1: Automated (Recommended)
-Run the following command to download and run the installer:
+You can install or update ClipTray LT using our simple installation script.
+
+### Installation / Upgrade
+
+Run the following command to download and install (or update) the application:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/rabbanyhmm/ClipTrayLT/main/install.sh | sudo bash
 ```
 
-### Option 2: Debian / Ubuntu (.deb Package)
-Download the `.deb` package from the [Releases](https://github.com/rabbanyhmm/ClipTrayLT/releases) page and install:
+Alternatively, if you have already cloned the repository locally:
 
 ```bash
-sudo apt install ./cliptraylt_1.0.0_amd64.deb
-```
-
-### Option 3: Build from Source
-If you prefer to build manually:
-
-```bash
-git clone https://github.com/rabbanyhmm/ClipTrayLT.git
-cd ClipTrayLT
+git pull
 sudo ./install.sh
 ```
 
-### Option 4: Pre-built Binary
-Download the pre-built tarball from the [Releases](https://github.com/rabbanyhmm/ClipTrayLT/releases) page, extract it, and run the installer:
-
-```bash
-tar -xzf cliptraylt-v1.0.0-linux-*.tar.gz
-cd cliptraylt-v1.0.0-linux-*
-sudo ./install.sh
-```
-
-### Usage & Upgrading
+### Usage
 
 Once installed, you can use the `cliptraylt` command in your terminal:
 
@@ -100,18 +85,6 @@ Once installed, you can use the `cliptraylt` command in your terminal:
 | **Older/Minimal Distributions** | No | Manual Setup Required |
 
 *If your distribution is not listed above, you may need to install the following dependencies manually: `cmake`, `g++`, `qt6-base`, `libevdev`, `libsqlite3`, `at-spi2-core`, and `glib2`.*
-
-### Updating
-
-```bash
-./update.sh
-```
-
-### Uninstallation
-
-```bash
-./uninstall.sh
-```
 
 ## Configuration
 
