@@ -48,27 +48,47 @@ ClipTray LT is an event-driven clipboard history flyout for Linux. It operates w
 
 ## Installation
 
-We provide an automated installation script that detects your distribution, installs required dependencies, and sets up ClipTray LT for you.
-
-### Automated Installation (Recommended)
-
+### Option 1: Automated (Recommended)
 Run the following command to download and run the installer:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/rabbanyhmm/ClipTrayLT/main/install.sh | sudo bash
 ```
 
+### Option 2: Debian / Ubuntu (.deb Package)
+Download the `.deb` package from the [Releases](https://github.com/rabbanyhmm/ClipTrayLT/releases) page and install:
+
+```bash
+sudo apt install ./cliptraylt_1.0.0_amd64.deb
+```
+
+### Option 3: Build from Source
+If you prefer to build manually:
+
+```bash
+git clone https://github.com/rabbanyhmm/ClipTrayLT.git
+cd ClipTrayLT
+sudo ./install.sh
+```
+
+### Option 4: Pre-built Binary
+Download the pre-built tarball from the [Releases](https://github.com/rabbanyhmm/ClipTrayLT/releases) page, extract it, and run the installer:
+
+```bash
+tar -xzf cliptraylt-v1.0.0-linux-*.tar.gz
+cd cliptraylt-v1.0.0-linux-*
+sudo ./install.sh
+```
+
 ### Usage & Upgrading
 
-Once installed, you can use the `cliptraylt` command in your terminal to manage the application:
+Once installed, you can use the `cliptraylt` command in your terminal:
 
 | Command | Description |
 | :--- | :--- |
 | `cliptraylt` | Launch the application/flyout |
 | `cliptraylt --version` | Check the currently installed version |
 | `cliptraylt upgrade` | Automatically upgrade to the latest version |
-
-*Note: For the `cliptraylt upgrade` command to work, you must have cloned the project into a directory (e.g., `/opt/cliptraylt`) or kept the original installation directory where the installer was run.*
 
 ### Supported Environments
 
